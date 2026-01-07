@@ -15,6 +15,14 @@ const envSchema = z.object({
 	COMMON_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(1000),
 
 	COMMON_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(1000),
+
+	MONGO_URI: z.string().min(1).default("mongodb://admin:password@localhost:27017/auction_db?authSource=admin"),
+
+	REDIS_HOST: z.string().min(1).default("localhost"),
+
+	REDIS_PORT: z.coerce.number().int().positive().default(6379),
+
+	REDIS_PASSWORD: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
