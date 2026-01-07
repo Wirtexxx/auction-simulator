@@ -1,99 +1,105 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  mongodb:
-    image: mongo:8.0
-    container_name: auction-mongodb
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
-      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-auction_db}
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-    networks:
-      - auction-network
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    mongodb:
+        image: mongo:8.0
+        container_name: auction-mongodb
+        restart: unless-stopped
+        ports:
+            - "27017:27017"
+        command: mongod --quiet --logpath /dev/null
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+            MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-auction_db}
+        volumes:
+            - mongodb_data:/data/db
+            - mongodb_config:/data/configdb
+        networks:
+            - auction-network
+        logging:
+            driver: "none"
+        healthcheck:
+            test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: auction-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD:-redispassword} --appendonly yes
-    volumes:
-      - redis_data:/data
-    networks:
-      - auction-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redispassword}", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+    redis:
+        image: redis:7-alpine
+        container_name: auction-redis
+        restart: unless-stopped
+        ports:
+            - "6379:6379"
+        command: redis-server --requirepass ${REDIS_PASSWORD:-redispassword} --appendonly yes
+        volumes:
+            - redis_data:/data
+        networks:
+            - auction-network
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "redis-cli",
+                    "-a",
+                    "${REDIS_PASSWORD:-redispassword}",
+                    "ping",
+                ]
+            interval: 10s
+            timeout: 3s
+            retries: 5
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: auction-backend
-    restart: unless-stopped
-    ports:
-      - "${BACKEND_PORT:-8080}:8080"
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      HOST: ${HOST:-0.0.0.0}
-      PORT: ${PORT:-8080}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
-      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb:27017/${MONGO_DATABASE:-auction_db}?authSource=admin
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
-      COMMON_RATE_LIMIT_MAX_REQUESTS: ${COMMON_RATE_LIMIT_MAX_REQUESTS:-1000}
-      COMMON_RATE_LIMIT_WINDOW_MS: ${COMMON_RATE_LIMIT_WINDOW_MS:-1000}
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - auction-network
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+    backend:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        container_name: auction-backend
+        restart: unless-stopped
+        ports:
+            - "${BACKEND_PORT:-8080}:8080"
+        environment:
+            NODE_ENV: ${NODE_ENV:-production}
+            HOST: ${HOST:-0.0.0.0}
+            PORT: ${PORT:-8080}
+            CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+            MONGO_URI: mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb:27017/${MONGO_DATABASE:-auction_db}?authSource=admin
+            REDIS_HOST: redis
+            REDIS_PORT: 6379
+            REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
+            COMMON_RATE_LIMIT_MAX_REQUESTS: ${COMMON_RATE_LIMIT_MAX_REQUESTS:-1000}
+            COMMON_RATE_LIMIT_WINDOW_MS: ${COMMON_RATE_LIMIT_WINDOW_MS:-1000}
+        depends_on:
+            mongodb:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        networks:
+            - auction-network
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: dev
-    container_name: auction-frontend
-    restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-5173}:5173"
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
-    depends_on:
-      - backend
-    networks:
-      - auction-network
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+            target: dev
+        container_name: auction-frontend
+        restart: unless-stopped
+        ports:
+            - "${FRONTEND_PORT:-5173}:5173"
+        environment:
+            VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+        depends_on:
+            - backend
+        networks:
+            - auction-network
+        volumes:
+            - ./frontend:/app
+            - /app/node_modules
 
 volumes:
-  mongodb_data:
-  mongodb_config:
-  redis_data:
+    mongodb_data:
+    mongodb_config:
+    redis_data:
 
 networks:
-  auction-network:
-    driver: bridge
-
+    auction-network:
+        driver: bridge
