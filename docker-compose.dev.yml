@@ -3,19 +3,25 @@ version: "3.8"
 services:
     mongodb:
         image: mongo:8.0
-        container_name: auction-mongodb
+        container_name: auction-mongodb-dev
         restart: unless-stopped
         ports:
             - "27017:27017"
+        command: mongod --quiet --logpath /dev/null
         environment:
             MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
             MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
             MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-auction_db}
         volumes:
-            - mongodb_data:/data/db
-            - mongodb_config:/data/configdb
+            - mongodb_data_dev:/data/db
+            - mongodb_config_dev:/data/configdb
         networks:
-            - auction-network
+            - auction-network-dev
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "10m"
+                max-file: "3"
         healthcheck:
             test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
             interval: 10s
@@ -24,15 +30,20 @@ services:
 
     redis:
         image: redis:7-alpine
-        container_name: auction-redis
+        container_name: auction-redis-dev
         restart: unless-stopped
         ports:
             - "6379:6379"
         command: redis-server --requirepass ${REDIS_PASSWORD:-redispassword} --appendonly yes
         volumes:
-            - redis_data:/data
+            - redis_data_dev:/data
         networks:
-            - auction-network
+            - auction-network-dev
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "10m"
+                max-file: "3"
         healthcheck:
             test:
                 [
@@ -50,12 +61,13 @@ services:
         build:
             context: ./backend
             dockerfile: Dockerfile
-        container_name: auction-backend
+            target: build
+        container_name: auction-backend-dev
         restart: unless-stopped
         ports:
             - "${BACKEND_PORT:-8080}:8080"
         environment:
-            NODE_ENV: ${NODE_ENV:-production}
+            NODE_ENV: development
             HOST: ${HOST:-0.0.0.0}
             PORT: ${PORT:-8080}
             CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
@@ -65,23 +77,25 @@ services:
             REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
             COMMON_RATE_LIMIT_MAX_REQUESTS: ${COMMON_RATE_LIMIT_MAX_REQUESTS:-1000}
             COMMON_RATE_LIMIT_WINDOW_MS: ${COMMON_RATE_LIMIT_WINDOW_MS:-1000}
+        command: pnpm run start:dev
+        volumes:
+            - ./backend:/app
+            - /app/node_modules
+            - /app/dist
+        networks:
+            - auction-network-dev
         depends_on:
             mongodb:
                 condition: service_healthy
             redis:
                 condition: service_healthy
-        networks:
-            - auction-network
-        volumes:
-            - ./backend:/app
-            - /app/node_modules
 
     frontend:
         build:
             context: ./frontend
             dockerfile: Dockerfile
             target: dev
-        container_name: auction-frontend
+        container_name: auction-frontend-dev
         restart: unless-stopped
         ports:
             - "${FRONTEND_PORT:-5173}:5173"
@@ -90,16 +104,16 @@ services:
         depends_on:
             - backend
         networks:
-            - auction-network
+            - auction-network-dev
         volumes:
             - ./frontend:/app
             - /app/node_modules
 
 volumes:
-    mongodb_data:
-    mongodb_config:
-    redis_data:
+    mongodb_data_dev:
+    mongodb_config_dev:
+    redis_data_dev:
 
 networks:
-    auction-network:
+    auction-network-dev:
         driver: bridge
