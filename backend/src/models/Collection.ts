@@ -25,8 +25,7 @@ const collectionSchema = new mongoose.Schema(
 	},
 	{
 		timestamps: false,
-	}
+	},
 );
 
 export default mongoose.model("Collection", collectionSchema);
-

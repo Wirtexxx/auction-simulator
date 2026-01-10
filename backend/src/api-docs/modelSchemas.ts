@@ -6,9 +6,17 @@ extendZodWithOpenApi(z);
 // User Schema
 export const UserSchema = z
 	.object({
-		_id: z.number().openapi({ description: "User ID", example: 1 }),
+		_id: z.number().openapi({ description: "User ID (Telegram user ID)", example: 279058397 }),
 		username: z.string().openapi({ description: "Username", example: "john_doe" }),
-		photo_url: z.string().nullable().optional().openapi({ description: "User photo URL", example: "https://example.com/photo.jpg" }),
+		first_name: z.string().openapi({ description: "First name", example: "John" }),
+		last_name: z.string().nullable().optional().openapi({ description: "Last name", example: "Doe" }),
+		photo_url: z
+			.string()
+			.nullable()
+			.optional()
+			.openapi({ description: "User photo URL", example: "https://example.com/photo.jpg" }),
+		language_code: z.string().nullable().optional().openapi({ description: "Language code", example: "en" }),
+		is_premium: z.boolean().openapi({ description: "Is Telegram Premium", example: false }),
 		role: z.enum(["user", "admin"]).openapi({ description: "User role", example: "user" }),
 		created_at: z.date().openapi({ description: "Creation timestamp", example: "2024-01-01T00:00:00.000Z" }),
 	})
@@ -27,7 +35,11 @@ export const CollectionSchema = z
 	.object({
 		_id: z.string().openapi({ description: "Collection MongoDB ObjectId", example: "507f1f77bcf86cd799439011" }),
 		title: z.string().openapi({ description: "Collection title", example: "Summer Collection" }),
-		description: z.string().nullable().optional().openapi({ description: "Collection description", example: "A beautiful summer collection" }),
+		description: z
+			.string()
+			.nullable()
+			.optional()
+			.openapi({ description: "Collection description", example: "A beautiful summer collection" }),
 		total_amount: z.number().openapi({ description: "Total amount of items in collection", example: 100 }),
 		minted_amount: z.number().openapi({ description: "Number of minted items", example: 50 }),
 		created_at: z.date().openapi({ description: "Creation timestamp", example: "2024-01-01T00:00:00.000Z" }),
@@ -40,7 +52,9 @@ export const GiftSchema = z
 		_id: z.string().openapi({ description: "Gift MongoDB ObjectId", example: "507f1f77bcf86cd799439012" }),
 		gift_id: z.number().openapi({ description: "Gift integer ID for display", example: 12345 }),
 		emoji: z.string().openapi({ description: "Gift emoji", example: "🎁" }),
-		collection_id: z.string().openapi({ description: "Collection MongoDB ObjectId", example: "507f1f77bcf86cd799439011" }),
+		collection_id: z
+			.string()
+			.openapi({ description: "Collection MongoDB ObjectId", example: "507f1f77bcf86cd799439011" }),
 	})
 	.openapi({ title: "Gift", description: "Gift model" });
 
@@ -48,7 +62,9 @@ export const GiftSchema = z
 export const AuctionSchema = z
 	.object({
 		_id: z.string().openapi({ description: "Auction MongoDB ObjectId", example: "507f1f77bcf86cd799439013" }),
-		collection_id: z.string().openapi({ description: "Collection MongoDB ObjectId", example: "507f1f77bcf86cd799439011" }),
+		collection_id: z
+			.string()
+			.openapi({ description: "Collection MongoDB ObjectId", example: "507f1f77bcf86cd799439011" }),
 		round_duration: z.number().openapi({ description: "Round duration in seconds", example: 300 }),
 		status: z.enum(["active", "finished"]).openapi({ description: "Auction status", example: "active" }),
 		created_at: z.date().openapi({ description: "Creation timestamp", example: "2024-01-01T00:00:00.000Z" }),
@@ -65,4 +81,3 @@ export const OwnershipSchema = z
 		acquired_at: z.date().openapi({ description: "Acquisition timestamp", example: "2024-01-01T00:00:00.000Z" }),
 	})
 	.openapi({ title: "Ownership", description: "Ownership model" });
-

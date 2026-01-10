@@ -23,11 +23,10 @@ const auctionSchema = new mongoose.Schema(
 	},
 	{
 		timestamps: false,
-	}
+	},
 );
 
 auctionSchema.index({ collection_id: 1 });
 auctionSchema.index({ status: 1 });
 
 export default mongoose.model("Auction", auctionSchema);
-
