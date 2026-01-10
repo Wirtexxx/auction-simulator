@@ -11,6 +11,18 @@ const auctionSchema = new mongoose.Schema(
 			type: Number,
 			required: true,
 		},
+		gifts_per_round: {
+			type: Number,
+			required: true,
+			default: 1,
+		},
+		current_round_number: {
+			type: Number,
+			default: 1,
+		},
+		current_round_started_at: {
+			type: Date,
+		},
 		status: {
 			type: String,
 			enum: ["active", "finished"],

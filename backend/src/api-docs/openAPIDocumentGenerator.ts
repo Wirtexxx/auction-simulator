@@ -5,6 +5,7 @@ import { collectionRegistry } from "@/api/collection/collectionRouter";
 import { giftRegistry } from "@/api/gift/giftRouter";
 import { healthCheckRegistry } from "@/api/healthCheck/healthCheckRouter";
 import { ownershipRegistry } from "@/api/ownership/ownershipRouter";
+import { roundRegistry } from "@/api/round/roundRouter";
 import { userRegistry } from "@/api/user/userRouter";
 import { walletRegistry } from "@/api/wallet/walletRouter";
 import { modelRegistry } from "./modelRegistry";
@@ -19,6 +20,7 @@ export function generateOpenAPIDocument(): OpenAPIDocument {
 		collectionRegistry,
 		ownershipRegistry,
 		auctionRegistry,
+		roundRegistry,
 		walletRegistry,
 		modelRegistry,
 	]);

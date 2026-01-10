@@ -20,6 +20,11 @@ export const CreateAuctionSchema = z
 				.int()
 				.positive()
 				.openapi({ description: "Round duration in seconds", example: 300 }),
+			gifts_per_round: z
+				.number()
+				.int()
+				.positive()
+				.openapi({ description: "Number of gifts per round", example: 5 }),
 		}),
 	})
 	.openapi({ title: "CreateAuction" });
@@ -27,7 +32,7 @@ export const CreateAuctionSchema = z
 export const GetAuctionSchema = z
 	.object({
 		params: z.object({
-			id: commonValidations.id,
+			id: commonValidations.mongoId,
 		}),
 	})
 	.openapi({ title: "GetAuction" });
@@ -62,4 +67,5 @@ export const GetAuctionsSchema = z
 			.optional(),
 	})
 	.openapi({ title: "GetAuctions" });
+
 

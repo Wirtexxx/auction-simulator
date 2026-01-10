@@ -4,6 +4,7 @@ import type { Auction as AuctionType } from "./auctionModel";
 export interface CreateAuctionData {
 	collection_id: string;
 	round_duration: number;
+	gifts_per_round: number;
 	status?: "active" | "finished";
 }
 
@@ -19,6 +20,9 @@ export class AuctionRepository {
 		const auction = new Auction({
 			collection_id: data.collection_id,
 			round_duration: data.round_duration,
+			gifts_per_round: data.gifts_per_round,
+			current_round_number: 1,
+			current_round_started_at: new Date(),
 			status: data.status || "active",
 		});
 		await auction.save();
@@ -49,10 +53,39 @@ export class AuctionRepository {
 		return auctions.map((auction) => this.toAuctionType(auction));
 	}
 
+	async updateCurrentRound(auctionId: string, roundNumber: number, startedAt: Date): Promise<void> {
+		await Auction.findByIdAndUpdate(auctionId, {
+			current_round_number: roundNumber,
+			current_round_started_at: startedAt,
+		});
+	}
+
+	async findActiveAuctions(): Promise<AuctionType[]> {
+		const auctions = await Auction.find({ status: "active" });
+		return auctions.map((auction) => this.toAuctionType(auction));
+	}
+
+	async finishAuction(auctionId: string): Promise<void> {
+		await Auction.findByIdAndUpdate(auctionId, {
+			status: "finished",
+		});
+	}
+
+	async finishAllActiveAuctions(): Promise<number> {
+		const result = await Auction.updateMany(
+			{ status: "active" },
+			{ status: "finished" }
+		);
+		return result.modifiedCount || 0;
+	}
+
 	private toAuctionType(auction: {
 		_id: { toString: () => string };
 		collection_id: { toString: () => string } | string;
 		round_duration: number;
+		gifts_per_round: number;
+		current_round_number: number;
+		current_round_started_at?: Date | null;
 		status: "active" | "finished";
 		created_at: Date;
 	}): AuctionType {
@@ -60,9 +93,13 @@ export class AuctionRepository {
 			_id: auction._id.toString(),
 			collection_id: typeof auction.collection_id === "string" ? auction.collection_id : auction.collection_id.toString(),
 			round_duration: auction.round_duration,
+			gifts_per_round: auction.gifts_per_round,
+			current_round_number: auction.current_round_number,
+			current_round_started_at: auction.current_round_started_at || null,
 			status: auction.status,
 			created_at: auction.created_at,
 		};
 	}
 }
+
 

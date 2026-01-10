@@ -40,7 +40,7 @@ export class GiftRepository {
 		const gifts = await Gift.find(query)
 			.limit(filters?.limit || 100)
 			.skip(filters?.offset || 0)
-			.sort({ gift_id: -1 });
+			.sort({ gift_id: 1 });
 
 		return gifts.map((gift) => this.toGiftType(gift));
 	}

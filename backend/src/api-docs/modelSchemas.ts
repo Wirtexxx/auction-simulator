@@ -66,6 +66,13 @@ export const AuctionSchema = z
 			.string()
 			.openapi({ description: "Collection MongoDB ObjectId", example: "507f1f77bcf86cd799439011" }),
 		round_duration: z.number().openapi({ description: "Round duration in seconds", example: 300 }),
+		gifts_per_round: z.number().openapi({ description: "Number of gifts per round", example: 5 }),
+		current_round_number: z.number().openapi({ description: "Current round number", example: 1 }),
+		current_round_started_at: z
+			.date()
+			.nullable()
+			.optional()
+			.openapi({ description: "Current round start timestamp", example: "2024-01-01T00:00:00.000Z" }),
 		status: z.enum(["active", "finished"]).openapi({ description: "Auction status", example: "active" }),
 		created_at: z.date().openapi({ description: "Creation timestamp", example: "2024-01-01T00:00:00.000Z" }),
 	})
@@ -81,3 +88,22 @@ export const OwnershipSchema = z
 		acquired_at: z.date().openapi({ description: "Acquisition timestamp", example: "2024-01-01T00:00:00.000Z" }),
 	})
 	.openapi({ title: "Ownership", description: "Ownership model" });
+
+// Round Schema
+export const RoundSchema = z
+	.object({
+		_id: z.string().openapi({ description: "Round MongoDB ObjectId", example: "507f1f77bcf86cd799439015" }),
+		auction_id: z
+			.string()
+			.openapi({ description: "Auction MongoDB ObjectId", example: "507f1f77bcf86cd799439013" }),
+		round_number: z.number().openapi({ description: "Round number", example: 1 }),
+		gift_ids: z.array(z.string()).openapi({ description: "Array of gift IDs in this round", example: ["507f1f77bcf86cd799439011"] }),
+		started_at: z.date().openapi({ description: "Round start timestamp", example: "2024-01-01T00:00:00.000Z" }),
+		ended_at: z
+			.date()
+			.nullable()
+			.optional()
+			.openapi({ description: "Round end timestamp", example: "2024-01-01T00:05:00.000Z" }),
+		status: z.enum(["active", "finished"]).openapi({ description: "Round status", example: "active" }),
+	})
+	.openapi({ title: "Round", description: "Round model" });

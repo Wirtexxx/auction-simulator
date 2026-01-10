@@ -77,6 +77,7 @@ services:
             REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
             COMMON_RATE_LIMIT_MAX_REQUESTS: ${COMMON_RATE_LIMIT_MAX_REQUESTS:-1000}
             COMMON_RATE_LIMIT_WINDOW_MS: ${COMMON_RATE_LIMIT_WINDOW_MS:-1000}
+            TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8419862311:AAEvIf4CtNkK-679pFb3B-JLUz4qQXiYdo4}
         command: pnpm run start:dev
         volumes:
             - ./backend:/app
@@ -101,6 +102,7 @@ services:
             - "${FRONTEND_PORT:-5173}:5173"
         environment:
             VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+            VITE_MOCK_TELEGRAM: ${VITE_MOCK_TELEGRAM:-false}
         depends_on:
             - backend
         networks:

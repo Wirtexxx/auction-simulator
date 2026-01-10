@@ -13,7 +13,7 @@ export type Ownership = z.infer<typeof OwnershipSchema>;
 export const GetOwnershipSchema = z
 	.object({
 		params: z.object({
-			id: commonValidations.id,
+			id: commonValidations.mongoId,
 		}),
 	})
 	.openapi({ title: "GetOwnership" });

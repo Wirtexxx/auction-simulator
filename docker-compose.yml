@@ -65,6 +65,7 @@ services:
             REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
             COMMON_RATE_LIMIT_MAX_REQUESTS: ${COMMON_RATE_LIMIT_MAX_REQUESTS:-1000}
             COMMON_RATE_LIMIT_WINDOW_MS: ${COMMON_RATE_LIMIT_WINDOW_MS:-1000}
+            TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
         depends_on:
             mongodb:
                 condition: service_healthy

@@ -5,7 +5,9 @@ import { ServiceResponse } from "@/common/models/serviceResponse";
 import { env } from "@/common/utils/envConfig";
 import { validateTelegramInitData } from "@/common/utils/telegramAuth";
 import type { User } from "./userModel";
-import { type CreateUserData, UserRepository } from "./userRepository";
+import { UserRepository } from "./userRepository";
+import { createUserDataFromTelegram } from "./userHelpers";
+import { walletService } from "../wallet/walletService";
 
 export interface AuthResponse {
 	user: User;
@@ -21,9 +23,20 @@ export class UserService {
 
 	async authenticateWithTelegram(initDataRaw: string): Promise<ServiceResponse<AuthResponse>> {
 		try {
+			if (env.isDevelopment) {
+				console.log("📥 Received init data:", initDataRaw.substring(0, 100) + "...");
+			}
+
 			// Validate Telegram init data
 			const initData = validateTelegramInitData(initDataRaw);
 			if (!initData || !initData.user) {
+				if (env.isDevelopment) {
+					console.error("❌ Init data validation failed:", {
+						hasInitData: !!initData,
+						hasUser: !!initData?.user,
+						initDataRawLength: initDataRaw.length,
+					});
+				}
 				return ServiceResponse.failure(
 					"Invalid or expired Telegram init data",
 					null as unknown as AuthResponse,
@@ -33,26 +46,32 @@ export class UserService {
 
 			const telegramUser = initData.user;
 
-			// Check if user already exists by telegram_user_id (which is _id)
+			if (!telegramUser.id) {
+				return ServiceResponse.failure(
+					"Invalid Telegram user data: missing user ID",
+					null as unknown as AuthResponse,
+					StatusCodes.UNAUTHORIZED,
+				);
+			}
+
 			let user = await this.userRepository.findByTelegramUserId(telegramUser.id);
 
 			if (!user) {
-				// Register new user - use telegram_user_id as _id
-				const userData: CreateUserData = {
-					_id: telegramUser.id, // _id equals telegram_user_id
-					username: telegramUser.username || `user_${telegramUser.id}`,
-					first_name: telegramUser.first_name,
-					last_name: telegramUser.last_name,
-					photo_url: telegramUser.photo_url,
-					language_code: telegramUser.language_code,
-					is_premium: telegramUser.is_premium || false,
-					role: "user",
-				};
-
+				const userData = createUserDataFromTelegram(telegramUser);
 				user = await this.userRepository.create(userData);
-			} else {
-				// Update user data from Telegram (in case it changed)
-				// For now, we'll just use existing user, but you can add update logic here
+				
+				// Automatically create wallet for new user
+				const walletResponse = await walletService.createWallet({ user_id: user._id, balance: 0 });
+				if (walletResponse.success) {
+					if (env.isDevelopment) {
+						console.log(`✅ Wallet created automatically for user ${user._id}`);
+					}
+				} else {
+					// Log error but don't fail authentication if wallet creation fails
+					if (env.isDevelopment) {
+						console.error(`⚠️ Failed to create wallet for user ${user._id}:`, walletResponse.message);
+					}
+				}
 			}
 
 			// Generate JWT token

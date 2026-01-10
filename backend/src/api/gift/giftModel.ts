@@ -26,7 +26,7 @@ export const CreateGiftSchema = z
 export const GetGiftSchema = z
 	.object({
 		params: z.object({
-			id: commonValidations.id,
+			id: commonValidations.mongoId,
 		}),
 	})
 	.openapi({ title: "GetGift" });

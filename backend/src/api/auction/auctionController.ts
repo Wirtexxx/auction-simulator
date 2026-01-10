@@ -4,8 +4,8 @@ import { auctionService } from "./auctionService";
 
 export const auctionController = {
 	createAuction: async (req: Request, res: Response) => {
-		const { collection_id, round_duration } = req.body;
-		const serviceResponse = await auctionService.createAuction({ collection_id, round_duration });
+		const { collection_id, round_duration, gifts_per_round } = req.body;
+		const serviceResponse = await auctionService.createAuction({ collection_id, round_duration, gifts_per_round });
 		return res.status(serviceResponse.statusCode).send(serviceResponse);
 	},
 
@@ -27,4 +27,5 @@ export const auctionController = {
 		return res.status(serviceResponse.statusCode).send(serviceResponse);
 	},
 };
+
 

@@ -7,6 +7,7 @@ import { collectionRouter } from "@/api/collection/collectionRouter";
 import { giftRouter } from "@/api/gift/giftRouter";
 import { healthCheckRouter } from "@/api/healthCheck/healthCheckRouter";
 import { ownershipRouter } from "@/api/ownership/ownershipRouter";
+import { roundRouter } from "@/api/round/roundRouter";
 import { userRouter } from "@/api/user/userRouter";
 import { walletRouter } from "@/api/wallet/walletRouter";
 import { openAPIRouter } from "@/api-docs/openAPIRouter";
@@ -38,6 +39,7 @@ app.use("/gifts", giftRouter);
 app.use("/collections", collectionRouter);
 app.use("/ownerships", ownershipRouter);
 app.use("/auctions", auctionRouter);
+app.use("/rounds", roundRouter);
 app.use("/wallets", walletRouter);
 
 // Swagger UI

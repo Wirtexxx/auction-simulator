@@ -32,7 +32,7 @@ export const CreateCollectionSchema = z
 export const GetCollectionSchema = z
 	.object({
 		params: z.object({
-			id: commonValidations.id,
+			id: commonValidations.mongoId,
 		}),
 	})
 	.openapi({ title: "GetCollection" });
@@ -65,7 +65,7 @@ export const GetCollectionsSchema = z
 export const DeleteCollectionSchema = z
 	.object({
 		params: z.object({
-			id: commonValidations.id,
+			id: commonValidations.mongoId,
 		}),
 	})
 	.openapi({ title: "DeleteCollection" });
