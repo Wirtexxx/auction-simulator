@@ -35,7 +35,7 @@ export function BalanceIndicator() {
 
     if (loading) {
         return (
-            <div className="fixed top-4 right-4 z-40 bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 flex items-center gap-2">
+            <div className="fixed top-8 right-4 z-40 bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 flex items-center gap-2">
                 <div className="animate-pulse h-4 w-16 bg-[#17212b] rounded"></div>
             </div>
         );
@@ -44,7 +44,7 @@ export function BalanceIndicator() {
     return (
         <div
             className={cn(
-                "fixed top-4 right-4 z-40 bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 flex items-center gap-2 shadow-lg"
+                "fixed top-8 right-4 z-40 bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 flex items-center gap-2 shadow-lg"
             )}
         >
             <Wallet className="h-4 w-4 text-[#5288c1]" />

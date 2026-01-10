@@ -3,8 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getCollectionById } from '../lib/api/collection';
 import { getGifts, type Gift } from '../lib/api/gift';
 import { getOwnershipsByGiftId, type Ownership } from '../lib/api/ownership';
-import { ArrowLeft, Loader2, User } from 'lucide-react';
+import { Card, CardContent } from '../components/ui/card';
+import { Alert, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
+import { ArrowLeft, Loader2, User } from 'lucide-react';
 
 interface GiftWithOwnership extends Gift {
     ownership?: Ownership;
@@ -100,10 +102,10 @@ export function CollectionDetailPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#17212b] text-[#f5f5f5] pb-20">
+            <div className="min-h-screen pb-20">
                 <div className="container mx-auto px-4 py-8">
                     <div className="flex items-center justify-center py-12">
-                        <Loader2 className="w-8 h-8 animate-spin text-[#5288c1]" />
+                        <Loader2 className="w-8 h-8 animate-spin" />
                     </div>
                 </div>
             </div>
@@ -112,7 +114,7 @@ export function CollectionDetailPage() {
 
     if (error || !collection) {
         return (
-            <div className="min-h-screen bg-[#17212b] text-[#f5f5f5] pb-20">
+            <div className="min-h-screen pb-20">
                 <div className="container mx-auto px-4 py-8">
                     <Button
                         onClick={() => navigate('/app/collections')}
@@ -122,16 +124,16 @@ export function CollectionDetailPage() {
                         <ArrowLeft className="w-4 h-4 mr-2" />
                         Назад к коллекциям
                     </Button>
-                    <div className="bg-red-900/30 border border-red-800 rounded-lg p-4">
-                        <p className="text-red-300">{error || 'Коллекция не найдена'}</p>
-                    </div>
+                    <Alert variant="destructive">
+                        <AlertDescription>{error || 'Коллекция не найдена'}</AlertDescription>
+                    </Alert>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#17212b] text-[#f5f5f5] pb-20">
+        <div className="min-h-screen pb-20">
             <div className="container mx-auto px-4 py-8">
                 <Button
                     onClick={() => navigate('/app/collections')}
@@ -143,78 +145,81 @@ export function CollectionDetailPage() {
                 </Button>
 
                 {/* Collection Header */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-center mb-4">
-                        <div className="w-24 h-24 rounded-full bg-[#232e3c] flex items-center justify-center border-2 border-[#5288c1]/30">
-                            <span className="text-5xl">
-                                {collection.emoji || '🎁'}
-                            </span>
+                <Card className="mb-8">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-center mb-4">
+                            <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center border-2 border-primary/30">
+                                <span className="text-5xl">
+                                    {collection.emoji || '🎁'}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                    <h1 className="text-3xl font-bold text-center mb-2">
-                        {collection.title}
-                    </h1>
-                    {collection.description && (
-                        <p className="text-center text-[#708499] mb-4">
-                            {collection.description}
-                        </p>
-                    )}
-                    <div className="flex justify-center gap-4 text-sm text-[#708499]">
-                        <span>Всего: {collection.total_amount}</span>
-                        <span>•</span>
-                        <span>Создано: {collection.minted_amount}</span>
-                    </div>
-                </div>
+                        <h2 className="text-3xl font-bold text-center mb-2">
+                            {collection.title}
+                        </h2>
+                        {collection.description && (
+                            <p className="text-center text-muted-foreground mb-4">
+                                {collection.description}
+                            </p>
+                        )}
+                        <div className="flex justify-center gap-4 text-sm text-muted-foreground">
+                            <span>Всего: {collection.total_amount}</span>
+                            <span>•</span>
+                            <span>Создано: {collection.minted_amount}</span>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {/* Gifts List */}
                 <div className="space-y-4">
                     <h2 className="text-xl font-semibold mb-4">Подарки</h2>
                     
                     {gifts.length === 0 ? (
-                        <div className="text-center py-12">
-                            <p className="text-[#708499]">Подарки не найдены</p>
-                        </div>
+                        <Card>
+                            <CardContent className="text-center py-12">
+                                <p className="text-muted-foreground">Подарки не найдены</p>
+                            </CardContent>
+                        </Card>
                     ) : (
                         <>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {gifts.map((gift) => (
-                                    <div
-                                        key={gift._id}
-                                        className="bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg p-4 hover:border-[#5288c1] transition-colors"
-                                    >
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <div className="w-12 h-12 rounded-lg bg-[#17212b] flex items-center justify-center">
-                                                <span className="text-2xl">{gift.emoji}</span>
+                                    <Card key={gift._id} className="hover:border-primary transition-colors">
+                                        <CardContent className="p-4">
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
+                                                    <span className="text-2xl">{gift.emoji}</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="font-semibold">
+                                                        Подарок #{gift.gift_id}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="flex-1">
-                                                <p className="font-semibold text-[#f5f5f5]">
-                                                    Подарок #{gift.gift_id}
-                                                </p>
-                                            </div>
-                                        </div>
 
-                                        {gift.ownership ? (
-                                            <div className="pt-3 border-t border-[rgba(255,255,255,0.1)]">
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <User className="w-4 h-4 text-[#5288c1]" />
-                                                    <span className="text-[#708499]">Владелец:</span>
-                                                    <span className="text-[#f5f5f5] font-medium">
-                                                        ID {gift.ownership.owner_id}
-                                                    </span>
+                                            {gift.ownership ? (
+                                                <div className="pt-3 border-t space-y-2">
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <User className="w-4 h-4 text-primary" />
+                                                        <span className="text-muted-foreground">Владелец:</span>
+                                                        <span className="font-medium">
+                                                            ID {gift.ownership.owner_id}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-sm">
+                                                        <span className="text-muted-foreground">Цена:</span>
+                                                        <span className="text-primary font-medium ml-2">
+                                                            {gift.ownership.acquired_price.toFixed(2)}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="mt-2 text-sm">
-                                                    <span className="text-[#708499]">Цена:</span>
-                                                    <span className="text-[#5288c1] font-medium ml-2">
-                                                        {gift.ownership.acquired_price.toFixed(2)}
-                                                    </span>
+                                            ) : (
+                                                <div className="pt-3 border-t">
+                                                    <p className="text-sm text-muted-foreground">Не продано</p>
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            <div className="pt-3 border-t border-[rgba(255,255,255,0.1)]">
-                                                <p className="text-sm text-[#708499]">Не продано</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
                                 ))}
                             </div>
 

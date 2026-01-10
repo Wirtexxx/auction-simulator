@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Alert, AlertDescription } from '../components/ui/alert';
 import { createAuction } from '../lib/api/auction';
-import { getCollections, type Collection } from '../lib/api/collection';
-import { Gavel, CheckCircle, XCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { getCollections } from '../lib/api/collection';
+import type { Collection } from '../lib/api/types';
+import { Gavel, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export function AdminAuctionPage() {
-  const navigate = useNavigate();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('');
   const [roundDuration, setRoundDuration] = useState<string>('');
@@ -83,129 +87,117 @@ export function AdminAuctionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#17212b] text-[#f5f5f5] pb-20">
+    <div className="min-h-screen pb-20">
       <div className="container mx-auto px-4 py-8">
-        <Button
-          onClick={() => navigate('/app/admin')}
-          variant="ghost"
-          className="mb-6"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Назад к админ панели
-        </Button>
-
         <div className="flex items-center gap-3 mb-8">
-          <Gavel className="w-8 h-8 text-[#5288c1]" />
-          <h1 className="text-3xl font-bold">Создать аукцион</h1>
+          <Gavel className="w-8 h-8" />
+          <h2 className="text-2xl font-bold">Создать аукцион</h2>
         </div>
 
-        <div className="space-y-6">
-          {/* Collection Selection */}
-          <div className="space-y-2">
-            <label className="text-[#708499] text-sm uppercase tracking-wide">
-              Коллекция
-            </label>
-            {loadingCollections ? (
-              <div className="flex items-center gap-2 py-4">
-                <Loader2 className="w-4 h-4 animate-spin text-[#5288c1]" />
-                <span className="text-[#708499]">Загрузка коллекций...</span>
-              </div>
-            ) : (
-              <select
-                value={selectedCollectionId}
-                onChange={(e) => setSelectedCollectionId(e.target.value)}
-                className="w-full bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-4 py-2 text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-[#5288c1] focus:border-transparent"
-                disabled={loading}
-              >
-                <option value="">Выберите коллекцию</option>
-                {collections.map((collection) => (
-                  <option key={collection._id} value={collection._id}>
-                    {collection.emoji ? `${collection.emoji} ` : ''}{collection.title}
-                    {collection.description ? ` - ${collection.description}` : ''}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Round Duration Input */}
-          <div className="space-y-2">
-            <label className="text-[#708499] text-sm uppercase tracking-wide">
-              Длительность раунда (секунды)
-            </label>
-            <input
-              type="number"
-              value={roundDuration}
-              onChange={(e) => setRoundDuration(e.target.value)}
-              placeholder="Например, 300 (5 минут)"
-              min="1"
-              step="1"
-              className="w-full bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-4 py-2 text-[#f5f5f5] placeholder-[#708499] focus:outline-none focus:ring-2 focus:ring-[#5288c1] focus:border-transparent"
-              disabled={loading}
-            />
-            <p className="text-xs text-[#708499]">
-              Укажите длительность одного раунда аукциона в секундах
-            </p>
-          </div>
-
-          {/* Gifts Per Round Input */}
-          <div className="space-y-2">
-            <label className="text-[#708499] text-sm uppercase tracking-wide">
-              Подарков в раунде
-            </label>
-            <input
-              type="number"
-              value={giftsPerRound}
-              onChange={(e) => setGiftsPerRound(e.target.value)}
-              placeholder="Например, 5"
-              min="1"
-              step="1"
-              className="w-full bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-4 py-2 text-[#f5f5f5] placeholder-[#708499] focus:outline-none focus:ring-2 focus:ring-[#5288c1] focus:border-transparent"
-              disabled={loading}
-            />
-            <p className="text-xs text-[#708499]">
-              Количество подарков, которые будут выставлены в одном раунде. Непроданные подарки переносятся на следующий раунд.
-            </p>
-          </div>
-
-          {/* Create Button */}
-          <Button
-            onClick={handleCreateAuction}
-            disabled={loading || !selectedCollectionId || !roundDuration || !giftsPerRound}
-            className="w-full"
-            size="lg"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Создание...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Создать аукцион
-              </>
-            )}
-          </Button>
-
-          {/* Message Display */}
-          {message && (
-            <div
-              className={`flex items-center gap-2 p-4 rounded-lg ${
-                message.type === 'success'
-                  ? 'bg-green-900/30 border border-green-800 text-green-300'
-                  : 'bg-red-900/30 border border-red-800 text-red-300'
-              }`}
-            >
-              {message.type === 'success' ? (
-                <CheckCircle className="w-5 h-5" />
+        <Card>
+          <CardHeader>
+            <CardTitle>Параметры аукциона</CardTitle>
+            <CardDescription>Заполните все поля для создания нового аукциона</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Collection Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="collection">Коллекция</Label>
+              {loadingCollections ? (
+                <div className="flex items-center gap-2 py-4">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-muted-foreground">Загрузка коллекций...</span>
+                </div>
               ) : (
-                <XCircle className="w-5 h-5" />
+                <Select
+                  value={selectedCollectionId}
+                  onValueChange={setSelectedCollectionId}
+                  disabled={loading}
+                >
+                  <SelectTrigger id="collection" className="w-full">
+                    <SelectValue placeholder="Выберите коллекцию" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {collections.map((collection) => (
+                      <SelectItem key={collection._id} value={collection._id}>
+                        {collection.emoji ? `${collection.emoji} ` : ''}{collection.title}
+                        {collection.description ? ` - ${collection.description}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
-              <p className="text-sm">{message.text}</p>
             </div>
-          )}
-        </div>
+
+            {/* Round Duration Input */}
+            <div className="space-y-2">
+              <Label htmlFor="duration">Длительность раунда (секунды)</Label>
+              <Input
+                id="duration"
+                type="number"
+                value={roundDuration}
+                onChange={(e) => setRoundDuration(e.target.value)}
+                placeholder="Например, 300 (5 минут)"
+                min="1"
+                step="1"
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground">
+                Укажите длительность одного раунда аукциона в секундах
+              </p>
+            </div>
+
+            {/* Gifts Per Round Input */}
+            <div className="space-y-2">
+              <Label htmlFor="gifts">Подарков в раунде</Label>
+              <Input
+                id="gifts"
+                type="number"
+                value={giftsPerRound}
+                onChange={(e) => setGiftsPerRound(e.target.value)}
+                placeholder="Например, 5"
+                min="1"
+                step="1"
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground">
+                Количество подарков, которые будут выставлены в одном раунде. Непроданные подарки переносятся на следующий раунд.
+              </p>
+            </div>
+
+            {/* Create Button */}
+            <Button
+              onClick={handleCreateAuction}
+              disabled={loading || !selectedCollectionId || !roundDuration || !giftsPerRound}
+              className="w-full"
+              size="lg"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Создание...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Создать аукцион
+                </>
+              )}
+            </Button>
+
+            {/* Message Display */}
+            {message && (
+              <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
+                {message.type === 'success' ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : (
+                  <XCircle className="w-5 h-5" />
+                )}
+                <AlertDescription>{message.text}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

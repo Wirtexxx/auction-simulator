@@ -51,9 +51,9 @@ export function AuthPage() {
         <div className="flex items-center justify-center h-screen bg-[#17212b]">
             <div className="bg-[#232e3c] rounded-lg shadow-xl p-8 max-w-md w-full mx-4 border border-[rgba(255,255,255,0.1)]">
                 <div className="text-center">
-                    <h1 className="text-3xl font-bold text-[#f5f5f5] mb-2">
+                    <h2 className="text-3xl font-bold text-[#f5f5f5] mb-2">
                         Welcome
-                    </h1>
+                    </h2>
                     <p className="text-[#708499] mb-8">
                         Authenticating with Telegram...
                     </p>

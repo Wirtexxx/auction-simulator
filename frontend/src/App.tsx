@@ -9,9 +9,11 @@ import { AdminBalancePage } from "./pages/AdminBalancePage";
 import { AdminCollectionPage } from "./pages/AdminCollectionPage";
 import { AdminCollectionsPage } from "./pages/AdminCollectionsPage";
 import { AdminAuctionPage } from "./pages/AdminAuctionPage";
+import { AdminAuctionsPage } from "./pages/AdminAuctionsPage";
 import { BottomNavigation } from "./components/BottomNavigation";
 import { BalanceIndicator } from "./components/BalanceIndicator";
 import { isAuthenticated } from "./lib/authStorage";
+import { useTelegramBackButton } from "./hooks/useTelegramBackButton";
 import "./App.css";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -31,9 +33,16 @@ function AppLayout({ children }: { children: React.ReactNode }) {
     );
 }
 
+// Component to handle Telegram Back Button inside BrowserRouter
+function TelegramBackButtonHandler() {
+    useTelegramBackButton();
+    return null;
+}
+
 function App() {
     return (
         <BrowserRouter>
+            <TelegramBackButtonHandler />
             <Routes>
                 <Route path="/auth" element={<AuthPage />} />
                 <Route
@@ -122,6 +131,16 @@ function App() {
                         <ProtectedRoute>
                             <AppLayout>
                                 <AdminAuctionPage />
+                            </AppLayout>
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/app/admin/auctions"
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout>
+                                <AdminAuctionsPage />
                             </AppLayout>
                         </ProtectedRoute>
                     }

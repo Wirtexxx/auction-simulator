@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { Alert, AlertDescription } from '../components/ui/alert';
 import { createCollection } from '../lib/api/collection';
 import { Gift, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
@@ -63,118 +68,111 @@ export function AdminCollectionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#17212b] text-[#f5f5f5] pb-20">
+    <div className="min-h-screen pb-20">
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Создать коллекцию подарков</h1>
+        <h2 className="text-2xl font-bold mb-8">Создать коллекцию подарков</h2>
 
-        <div className="space-y-6">
-          {/* Title Input */}
-          <div className="space-y-2">
-            <label className="text-[#708499] text-sm uppercase tracking-wide">
-              Название коллекции *
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например: Летняя коллекция"
-              className="w-full bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-4 py-2 text-[#f5f5f5] placeholder-[#708499] focus:outline-none focus:ring-2 focus:ring-[#5288c1] focus:border-transparent"
-              disabled={loading}
-            />
-          </div>
-
-          {/* Description Input */}
-          <div className="space-y-2">
-            <label className="text-[#708499] text-sm uppercase tracking-wide">
-              Описание (необязательно)
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Описание коллекции..."
-              rows={3}
-              className="w-full bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-4 py-2 text-[#f5f5f5] placeholder-[#708499] focus:outline-none focus:ring-2 focus:ring-[#5288c1] focus:border-transparent resize-none"
-              disabled={loading}
-            />
-          </div>
-
-          {/* Total Amount Input */}
-          <div className="space-y-2">
-            <label className="text-[#708499] text-sm uppercase tracking-wide">
-              Количество подарков *
-            </label>
-            <input
-              type="number"
-              value={totalAmount}
-              onChange={(e) => setTotalAmount(e.target.value)}
-              placeholder="Например: 100"
-              min="1"
-              step="1"
-              className="w-full bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-4 py-2 text-[#f5f5f5] placeholder-[#708499] focus:outline-none focus:ring-2 focus:ring-[#5288c1] focus:border-transparent"
-              disabled={loading}
-            />
-            <p className="text-xs text-[#708499]">
-              Будет создано указанное количество подарков с одинаковым эмодзи
-            </p>
-          </div>
-
-          {/* Emoji Input */}
-          <div className="space-y-2">
-            <label className="text-[#708499] text-sm uppercase tracking-wide">
-              Эмодзи для подарков *
-            </label>
-            <input
-              type="text"
-              value={emoji}
-              onChange={(e) => setEmoji(e.target.value)}
-              placeholder="🎁"
-              maxLength={2}
-              className="w-full bg-[#232e3c] border border-[rgba(255,255,255,0.1)] rounded-lg px-4 py-2 text-[#f5f5f5] placeholder-[#708499] focus:outline-none focus:ring-2 focus:ring-[#5288c1] focus:border-transparent text-2xl text-center"
-              disabled={loading}
-            />
-            <p className="text-xs text-[#708499]">
-              Все подарки в коллекции будут иметь этот эмодзи
-            </p>
-          </div>
-
-          {/* Create Button */}
-          <Button
-            onClick={handleCreateCollection}
-            disabled={loading || !title.trim() || !emoji.trim() || !totalAmount}
-            className="w-full"
-            size="lg"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Создание...
-              </>
-            ) : (
-              <>
-                <Gift className="w-4 h-4" />
-                Создать коллекцию
-              </>
-            )}
-          </Button>
-
-          {/* Message Display */}
-          {message && (
-            <div
-              className={`flex items-center gap-2 p-4 rounded-lg ${
-                message.type === 'success'
-                  ? 'bg-green-900/30 border border-green-800 text-green-300'
-                  : 'bg-red-900/30 border border-red-800 text-red-300'
-              }`}
-            >
-              {message.type === 'success' ? (
-                <CheckCircle className="w-5 h-5" />
-              ) : (
-                <XCircle className="w-5 h-5" />
-              )}
-              <p className="text-sm">{message.text}</p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Параметры коллекции</CardTitle>
+            <CardDescription>Заполните все обязательные поля для создания новой коллекции</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Title Input */}
+            <div className="space-y-2">
+              <Label htmlFor="title">Название коллекции *</Label>
+              <Input
+                id="title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Например: Летняя коллекция"
+                disabled={loading}
+              />
             </div>
-          )}
-        </div>
+
+            {/* Description Input */}
+            <div className="space-y-2">
+              <Label htmlFor="description">Описание (необязательно)</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Описание коллекции..."
+                rows={3}
+                disabled={loading}
+              />
+            </div>
+
+            {/* Total Amount Input */}
+            <div className="space-y-2">
+              <Label htmlFor="amount">Количество подарков *</Label>
+              <Input
+                id="amount"
+                type="number"
+                value={totalAmount}
+                onChange={(e) => setTotalAmount(e.target.value)}
+                placeholder="Например: 100"
+                min="1"
+                step="1"
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground">
+                Будет создано указанное количество подарков с одинаковым эмодзи
+              </p>
+            </div>
+
+            {/* Emoji Input */}
+            <div className="space-y-2">
+              <Label htmlFor="emoji">Эмодзи для подарков *</Label>
+              <Input
+                id="emoji"
+                type="text"
+                value={emoji}
+                onChange={(e) => setEmoji(e.target.value)}
+                placeholder="🎁"
+                maxLength={2}
+                className="text-2xl text-center"
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground">
+                Все подарки в коллекции будут иметь этот эмодзи
+              </p>
+            </div>
+
+            {/* Create Button */}
+            <Button
+              onClick={handleCreateCollection}
+              disabled={loading || !title.trim() || !emoji.trim() || !totalAmount}
+              className="w-full"
+              size="lg"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Создание...
+                </>
+              ) : (
+                <>
+                  <Gift className="w-4 h-4 mr-2" />
+                  Создать коллекцию
+                </>
+              )}
+            </Button>
+
+            {/* Message Display */}
+            {message && (
+              <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
+                {message.type === 'success' ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : (
+                  <XCircle className="w-5 h-5" />
+                )}
+                <AlertDescription>{message.text}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
