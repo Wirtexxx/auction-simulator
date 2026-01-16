@@ -52,7 +52,13 @@ export class TelegramBotService {
 					if (userId) {
 						logger.info(`[${userId}] Unknown command: ${command}`);
 					}
-					await this.sendMessage(chatId, `Неизвестная команда: ${command}. Используйте /start для начала.`);
+					if (chatId) {
+						// Sanitize command to prevent XSS
+						const sanitizedCommand = this.sanitizeForTelegram(command);
+						await this.sendMessage(chatId, `Неизвестная команда: ${sanitizedCommand}. Используйте /start для начала.`);
+					} else {
+						logger.warn("Cannot send message: chatId is undefined");
+					}
 				}
 			} else if (text) {
 				// Regular message (not a command)
@@ -90,9 +96,29 @@ export class TelegramBotService {
 	}
 
 	/**
+	 * Sanitize text for Telegram (prevent XSS and injection)
+	 */
+	private sanitizeForTelegram(text: string): string {
+		if (typeof text !== "string") {
+			return "";
+		}
+
+		// Remove HTML tags and special characters that could be used for injection
+		return text
+			.replace(/[<>]/g, "") // Remove angle brackets
+			.replace(/&/g, "&amp;") // Escape ampersand
+			.replace(/"/g, "&quot;") // Escape quotes
+			.replace(/'/g, "&#x27;") // Escape apostrophe
+			.replace(/\//g, "&#x2F;") // Escape slash
+			.substring(0, 4096); // Telegram message limit
+	}
+
+	/**
 	 * Send message to Telegram chat
 	 */
 	async sendMessage(chatId: number, text: string): Promise<boolean> {
+		// Sanitize message text to prevent XSS
+		const sanitizedText = this.sanitizeForTelegram(text);
 		if (!this.botToken) {
 			logger.error("Cannot send message: TELEGRAM_BOT_TOKEN is not configured");
 			return false;
@@ -107,7 +133,7 @@ export class TelegramBotService {
 				},
 				body: JSON.stringify({
 					chat_id: chatId,
-					text: text,
+					text: sanitizedText,
 					parse_mode: "HTML",
 				}),
 			});

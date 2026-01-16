@@ -8,6 +8,7 @@ import { updateAuctionState } from "@/common/redis/auctionState";
 import { walletService } from "@/api/wallet/walletService";
 import { getAuctionWebSocketServer } from "@/websocket/auctionWebSocket";
 import type { RoundSettledEvent } from "@/websocket/types";
+import { metricsService } from "@/common/metrics/metricsService";
 
 const logger = pino({ name: "settlementService" });
 
@@ -24,6 +25,7 @@ export class SettlementService {
 	async settleRound(auctionId: string, roundNumber: number): Promise<void> {
 		const redis = getRedisClient();
 		const settledKey = getRoundSettledKey(auctionId, roundNumber);
+		const startTime = Date.now();
 
 		try {
 			// 1. Check idempotency: if already settled, skip
@@ -73,12 +75,13 @@ export class SettlementService {
 				logger.info({ auctionId, roundNumber }, "No bids in round, skipping settlement");
 				// Mark as settled anyway
 				await redis.set(settledKey, "1");
-				await this.cleanupRound(auctionId, roundNumber);
 				
 				// Clear settling flag before moving to next round
 				await updateAuctionState(auctionId, { settling: false });
 				
 				// Move to next round (all gifts from this round will be unsold and transferred)
+				// IMPORTANT: nextRound() will copy bids from current round to new round
+				// Even if there are no bids, we should call nextRound() before cleanup
 				try {
 					const { auctionService } = await import("@/api/auction/auctionService");
 					await auctionService.nextRound(auctionId);
@@ -87,6 +90,9 @@ export class SettlementService {
 					logger.error({ error, auctionId, roundNumber }, "Error moving to next round after empty settlement");
 					// Don't throw - settlement is complete
 				}
+				
+				// Cleanup bids AFTER nextRound has been called
+				await this.cleanupRound(auctionId, roundNumber);
 				return;
 			}
 
@@ -144,6 +150,13 @@ export class SettlementService {
 			await this.processWinners(auctionId, roundNumber, winners);
 			await this.processLosers(auctionId, losers);
 
+			// Update metrics
+			const settlementDuration = (Date.now() - startTime) / 1000; // Convert to seconds
+			metricsService.settlementDurationSeconds.observe(settlementDuration);
+			metricsService.roundSettledTotal.inc();
+			metricsService.winnersTotal.inc(winners.length);
+			metricsService.giftsDistributedTotal.inc(winners.length);
+
 			// 7. Mark as settled (idempotency)
 			await redis.set(settledKey, "1");
 
@@ -164,13 +177,12 @@ export class SettlementService {
 				wsServer.broadcastToAuction(auctionId, event);
 			}
 
-			// 9. Cleanup and move to next round
-			await this.cleanupRound(auctionId, roundNumber);
-			
-			// Clear settling flag before moving to next round
+			// 9. Clear settling flag before moving to next round
 			await updateAuctionState(auctionId, { settling: false });
 			
-			// Move to next round (or finish auction)
+			// 10. Move to next round (or finish auction)
+			// IMPORTANT: nextRound() will copy bids from current round to new round
+			// We must NOT cleanup bids before nextRound() is called
 			try {
 				logger.info({ auctionId, roundNumber }, "Calling nextRound after settlement");
 				await auctionService.nextRound(auctionId);
@@ -186,6 +198,10 @@ export class SettlementService {
 				// Don't throw - settlement is complete, but log the error for investigation
 				// The auction state might be inconsistent, but we don't want to fail the entire settlement
 			}
+			
+			// 11. Cleanup bids AFTER nextRound has copied them to new round
+			// This ensures bids are available for copying before deletion
+			await this.cleanupRound(auctionId, roundNumber);
 
 			logger.info({ auctionId, roundNumber }, "Round settlement completed");
 		} catch (error) {

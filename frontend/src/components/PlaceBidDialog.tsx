@@ -221,8 +221,29 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
     }, []);
 
     const handleError = useCallback((event: ErrorEvent) => {
-        setError(event.error || event.message || "WebSocket error");
-    }, []);
+        const errorMessage = event.error || event.message || "WebSocket error";
+        setError(errorMessage);
+        setPlacingBid(false);
+        
+        // If error is about already placed bid, update hasUserBid state by refetching bids
+        if (errorMessage.toLowerCase().includes("already placed a bid") || 
+            errorMessage.toLowerCase().includes("уже сделал ставку")) {
+            if (auctionId && currentRound) {
+                getRoundBids(auctionId, currentRound.round_number).then((response) => {
+                    if (response.success && response.responseObject) {
+                        const bidsData: BidDisplay[] = response.responseObject.map((bid) => ({
+                            userId: bid.userId,
+                            amount: bid.amount,
+                            timestamp: bid.timestamp,
+                        }));
+                        setBids(bidsData);
+                    }
+                }).catch((error) => {
+                    console.error("Error loading bids after error:", error);
+                });
+            }
+        }
+    }, [auctionId, currentRound]);
 
     // WebSocket connection
     const { isConnected, sendBid, error: wsError } = useAuctionWebSocket({
@@ -472,6 +493,14 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
         }
     }, [handleBidInputSubmit]);
 
+    // Check if user has already placed a bid in this auction
+    const hasUserBid = useMemo(() => {
+        if (!user?._id || bids.length === 0) {
+            return false;
+        }
+        return bids.some((bid) => bid.userId === user._id);
+    }, [bids, user?._id]);
+
     // Check if user is in top (winners list)
     const isUserInTop = useMemo(() => {
         if (!user?._id || !auction || bids.length === 0) {
@@ -512,6 +541,11 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
             return;
         }
 
+        if (hasUserBid) {
+            setError("Вы уже сделали ставку в этом аукционе. Одна ставка на пользователя на весь аукцион.");
+            return;
+        }
+
         if (isUserInTop) {
             setError("Вы уже находитесь в топе. Невозможно разместить новую ставку.");
             return;
@@ -545,7 +579,7 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
             setPlacingBid(false);
             setError("Не удалось отправить ставку");
         }
-    }, [auctionId, user, currentBid, minBid, availableBalance, isSettling, isConnected, isUserInTop, sendBid]);
+    }, [auctionId, user, currentBid, minBid, availableBalance, isSettling, isConnected, hasUserBid, isUserInTop, sendBid]);
 
     const handleButtonMouseEnter = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
         e.currentTarget.style.backgroundColor = getSliderHoverColor(sliderValue);
@@ -708,7 +742,7 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
                                 </div>
                                 <Button
                                     onClick={handlePlaceBid}
-                                    disabled={isSettling || placingBid || !isConnected || currentBid > availableBalance || isUserInTop}
+                                    disabled={isSettling || placingBid || !isConnected || currentBid > availableBalance || hasUserBid || isUserInTop}
                                     className="w-full h-12 text-lg font-semibold text-white transition-all duration-200 disabled:opacity-50"
                                     size="lg"
                                     style={{
@@ -727,6 +761,8 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
                                         "Раунд закрывается"
                                     ) : !isConnected ? (
                                         "Подключение..."
+                                    ) : hasUserBid ? (
+                                        "Вы уже сделали ставку"
                                     ) : isUserInTop ? (
                                         "Вы уже в топе"
                                     ) : (

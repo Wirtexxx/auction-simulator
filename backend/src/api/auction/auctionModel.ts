@@ -68,4 +68,20 @@ export const GetAuctionsSchema = z
 	})
 	.openapi({ title: "GetAuctions" });
 
+export const StartAuctionSchema = z
+	.object({
+		params: z.object({
+			id: commonValidations.mongoId,
+		}),
+	})
+	.openapi({ title: "StartAuction" });
+
+export const FinishAuctionSchema = z
+	.object({
+		params: z.object({
+			id: commonValidations.mongoId,
+		}),
+	})
+	.openapi({ title: "FinishAuction" });
+
 

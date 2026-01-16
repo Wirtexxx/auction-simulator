@@ -13,6 +13,7 @@ import { auctionService } from "../auction/auctionService";
 import { getAuctionWebSocketServer } from "@/websocket/auctionWebSocket";
 import type { BidPlacedEvent } from "@/websocket/types";
 import type { Bid } from "./bidModel";
+import { metricsService } from "@/common/metrics/metricsService";
 
 const logger = pino({ name: "bidService" });
 
@@ -30,7 +31,7 @@ export class BidService {
 		amount: number,
 	): Promise<ServiceResponse<Bid>> {
 		const redis = getRedisClient();
-		let oldFrozenAmount = 0; // Track old frozen amount for rollback
+		const startTime = Date.now();
 
 		try {
 			// 1. Validate auction exists and is active
@@ -91,36 +92,31 @@ export class BidService {
 				);
 			}
 
+			// 5. Check if user has already placed a bid in this auction (atomic check)
+			// SADD returns 1 if the member was added (user hasn't bid yet), 0 if already exists
+			const usersKey = getAuctionUsersKey(auctionId);
+			const added = await redis.sadd(usersKey, userId.toString());
+			
+			if (added === 0) {
+				logger.warn(
+					{ userId, auctionId },
+					"Bid rejected: user has already placed a bid in this auction",
+				);
+				return ServiceResponse.failure(
+					"User has already placed a bid in this auction",
+					null as unknown as Bid,
+					StatusCodes.BAD_REQUEST,
+				);
+			}
+
 			const roundNumber = state.round;
 			const bidsKey = getRoundBidsKey(auctionId, roundNumber);
 
-			// 5. Check if user has existing bid in this round
-			// If yes, we need to unfreeze old amount and remove old bid
-			const existingBid = await this.getUserBid(auctionId, userId, roundNumber);
-
-			if (existingBid) {
-				oldFrozenAmount = existingBid.amount;
-				// Unfreeze old balance
-				await walletService.unfreezeBalance(userId, oldFrozenAmount, auctionId);
-				
-				// Remove old bid from ZSET (find and remove all bids from this user in this round)
-				const allBids = await redis.zrange(bidsKey, 0, -1, "WITHSCORES");
-				for (let i = 0; i < allBids.length; i += 2) {
-					const member = allBids[i] as string;
-					const [bidUserId] = member.split(":");
-					if (parseInt(bidUserId || "0", 10) === userId) {
-						await redis.zrem(bidsKey, member);
-					}
-				}
-			}
-
-			// 6. Check available balance (considering old frozen amount that was just unfrozen)
+			// 6. Check available balance
 			const availableBalance = await walletService.getAvailableBalance(userId);
 			if (availableBalance < amount) {
-				// If we unfroze old amount, we need to refreeze it
-				if (oldFrozenAmount > 0) {
-					await walletService.freezeBalance(userId, oldFrozenAmount, auctionId);
-				}
+				// Rollback: remove user from set since we're rejecting the bid
+				await redis.srem(usersKey, userId.toString());
 				return ServiceResponse.failure(
 					"Insufficient available balance",
 					null as unknown as Bid,
@@ -128,13 +124,11 @@ export class BidService {
 				);
 			}
 
-			// 7. Freeze new balance
+			// 7. Freeze balance
 			const frozen = await walletService.freezeBalance(userId, amount, auctionId);
 			if (!frozen) {
-				// If we unfroze old amount, we need to refreeze it
-				if (oldFrozenAmount > 0) {
-					await walletService.freezeBalance(userId, oldFrozenAmount, auctionId);
-				}
+				// Rollback: remove user from set since we're rejecting the bid
+				await redis.srem(usersKey, userId.toString());
 				return ServiceResponse.failure(
 					"Failed to freeze balance",
 					null as unknown as Bid,
@@ -150,10 +144,6 @@ export class BidService {
 
 			// ZREVRANGE sorts DESC by score, so we use positive amount
 			await redis.zadd(bidsKey, amount, member);
-
-			// 9. Add user to auction users set (if not already there)
-			const usersKey = getAuctionUsersKey(auctionId);
-			await redis.sadd(usersKey, userId.toString());
 
 			const bid: Bid = {
 				userId,
@@ -195,19 +185,33 @@ export class BidService {
 				wsServer.broadcastToAuction(auctionId, event);
 			}
 
+			// Update metrics
+			const processingDuration = (Date.now() - startTime) / 1000; // Convert to seconds
+			metricsService.bidProcessingDurationSeconds.observe(processingDuration);
+			metricsService.bidPlacedTotal.inc();
+			metricsService.bidAmountSum.inc(amount);
+
 			return ServiceResponse.success("Bid placed successfully", bid, StatusCodes.CREATED);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Failed to place bid";
 			logger.error({ error, userId, auctionId, amount }, "Error placing bid");
 
-			// Rollback: try to restore old frozen balance if we unfroze it
+			// Rollback: remove user from set and unfreeze balance if they were added
 			try {
-				if (oldFrozenAmount > 0) {
-					await walletService.freezeBalance(userId, oldFrozenAmount, auctionId);
-					logger.info({ userId, auctionId, oldFrozenAmount }, "Restored old frozen balance after error");
+				const usersKey = getAuctionUsersKey(auctionId);
+				const wasAdded = await redis.sismember(usersKey, userId.toString());
+				if (wasAdded === 1) {
+					await redis.srem(usersKey, userId.toString());
+					// Try to unfreeze balance if it was frozen
+					const frozenKey = getFrozenBalanceKey(userId, auctionId);
+					const frozenAmount = await redis.get(frozenKey);
+					if (frozenAmount) {
+						await walletService.unfreezeBalance(userId, parseFloat(frozenAmount), auctionId);
+					}
+					logger.info({ userId, auctionId }, "Rolled back bid: removed user from set and unfroze balance");
 				}
 			} catch (rollbackError) {
-				logger.error({ rollbackError, userId, auctionId, oldFrozenAmount }, "Error restoring old frozen balance");
+				logger.error({ rollbackError, userId, auctionId }, "Error during bid rollback");
 			}
 
 			return ServiceResponse.failure(

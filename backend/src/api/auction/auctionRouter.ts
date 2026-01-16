@@ -8,7 +8,7 @@ import { authenticate } from "@/common/middleware/authenticate";
 import { requireAdmin } from "@/common/middleware/requireAdmin";
 import { validateRequest } from "@/common/utils/httpHandlers";
 import { auctionController } from "./auctionController";
-import { CreateAuctionSchema, GetAuctionSchema, GetAuctionsSchema } from "./auctionModel";
+import { CreateAuctionSchema, GetAuctionSchema, GetAuctionsSchema, StartAuctionSchema, FinishAuctionSchema } from "./auctionModel";
 
 export const auctionRegistry = new OpenAPIRegistry();
 export const auctionRouter: Router = express.Router();
@@ -83,3 +83,42 @@ auctionRegistry.registerPath({
 
 auctionRouter.get("/:id", validateRequest(GetAuctionSchema), auctionController.getAuction);
 
+// Start auction endpoint
+auctionRegistry.registerPath({
+	method: "post",
+	path: "/auctions/{id}/start",
+	tags: ["Auction"],
+	security: [{ Bearer: [] }],
+	request: {
+		params: StartAuctionSchema.shape.params,
+	},
+	responses: createApiResponse(AuctionSchema, "Auction started successfully"),
+});
+
+auctionRouter.post(
+	"/:id/start",
+	authenticate,
+	requireAdmin,
+	validateRequest(StartAuctionSchema),
+	auctionController.startAuction,
+);
+
+// Finish auction endpoint
+auctionRegistry.registerPath({
+	method: "post",
+	path: "/auctions/{id}/finish",
+	tags: ["Auction"],
+	security: [{ Bearer: [] }],
+	request: {
+		params: FinishAuctionSchema.shape.params,
+	},
+	responses: createApiResponse(AuctionSchema, "Auction finished successfully"),
+});
+
+auctionRouter.post(
+	"/:id/finish",
+	authenticate,
+	requireAdmin,
+	validateRequest(FinishAuctionSchema),
+	auctionController.finishAuction,
+);

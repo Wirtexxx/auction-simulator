@@ -31,6 +31,7 @@
 		"mongoose": "8.9.2",
 		"pino": "9.9.0",
 		"pino-http": "10.5.0",
+		"prom-client": "^15.1.0",
 		"swagger-ui-express": "5.0.1",
 		"ws": "^8.19.0",
 		"zod": "3.25.76"

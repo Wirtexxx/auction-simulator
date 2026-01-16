@@ -125,16 +125,30 @@ export class RecoveryService {
 
 	/**
 	 * Rebuild frozen balances from bids stored in Redis
-	 * This is needed because frozen balances are stored per auction
+	 * According to TZ: one bid per user per auction, bids are copied to each round
+	 * We restore bids from current round, and ensure all users in SET have bids
 	 */
 	private async rebuildFrozenBalances(auctionId: string, roundNumber: number): Promise<void> {
 		const redis = getRedisClient();
 		const bidsKey = getRoundBidsKey(auctionId, roundNumber);
+		const usersKey = getAuctionUsersKey(auctionId);
 
 		try {
-			// Get all bids from Redis
-			const bids = await redis.zrange(bidsKey, 0, -1, "WITHSCORES");
+			// Get all users who have placed bids in this auction
+			const userIds = await redis.smembers(usersKey);
+			
+			if (userIds.length === 0) {
+				logger.info({ auctionId, roundNumber }, "No users found in auction users set, skipping frozen balance rebuild");
+				return;
+			}
 
+			// Get all bids from current round
+			const bids = await redis.zrange(bidsKey, 0, -1, "WITHSCORES");
+			
+			// Map to track which users have bids in current round
+			const usersWithBids = new Set<number>();
+			
+			// Process bids from current round
 			for (let i = 0; i < bids.length; i += 2) {
 				const member = bids[i] as string;
 				const [userIdStr, , amountStr] = member.split(":");
@@ -142,17 +156,74 @@ export class RecoveryService {
 				const amount = parseFloat(amountStr || "0");
 
 				if (userId && amount > 0) {
+					usersWithBids.add(userId);
 					// Restore frozen balance
 					const frozenKey = getFrozenBalanceKey(userId, auctionId);
 					await redis.set(frozenKey, amount.toString());
-
-					// Add user to auction users set
-					const usersKey = getAuctionUsersKey(auctionId);
-					await redis.sadd(usersKey, userId.toString());
 				}
 			}
 
-			logger.info({ auctionId, roundNumber, bidCount: bids.length / 2 }, "Frozen balances rebuilt");
+			// Check if any users from SET don't have bids in current round
+			// This can happen if server crashed before bids were copied to new round
+			// Try to find bids in previous rounds
+			const missingUsers: number[] = [];
+			for (const userIdStr of userIds) {
+				const userId = parseInt(userIdStr, 10);
+				if (!usersWithBids.has(userId)) {
+					missingUsers.push(userId);
+					
+					// Try to find bid in previous rounds (starting from current round - 1, going backwards)
+					let foundBid = false;
+					for (let prevRound = roundNumber - 1; prevRound >= 1 && !foundBid; prevRound--) {
+						const prevBidsKey = getRoundBidsKey(auctionId, prevRound);
+						const prevBids = await redis.zrange(prevBidsKey, 0, -1, "WITHSCORES");
+						
+						// Find user's bid in previous round
+						for (let j = 0; j < prevBids.length; j += 2) {
+							const member = prevBids[j] as string;
+							const [bidUserIdStr, , amountStr] = member.split(":");
+							const bidUserId = parseInt(bidUserIdStr || "0", 10);
+							
+							if (bidUserId === userId) {
+								const amount = parseFloat(amountStr || "0");
+								if (amount > 0) {
+									// Copy bid to current round
+									await redis.zadd(bidsKey, amount, member);
+									// Restore frozen balance
+									const frozenKey = getFrozenBalanceKey(userId, auctionId);
+									await redis.set(frozenKey, amount.toString());
+									usersWithBids.add(userId);
+									foundBid = true;
+									logger.info(
+										{ auctionId, userId, fromRound: prevRound, toRound: roundNumber, amount },
+										"Recovered bid from previous round"
+									);
+									break;
+								}
+							}
+						}
+					}
+					
+					if (!foundBid) {
+						logger.warn(
+							{ auctionId, userId, roundNumber },
+							"User in auction users set but no bid found in any round"
+						);
+					}
+				}
+			}
+
+			const totalBids = await redis.zcard(bidsKey);
+			logger.info(
+				{ 
+					auctionId, 
+					roundNumber, 
+					usersInSet: userIds.length,
+					bidsInRound: totalBids,
+					missingUsersRecovered: missingUsers.length - (userIds.length - usersWithBids.size)
+				}, 
+				"Frozen balances rebuilt"
+			);
 		} catch (error) {
 			logger.error({ error, auctionId, roundNumber }, "Error rebuilding frozen balances");
 		}

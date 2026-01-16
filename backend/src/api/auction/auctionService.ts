@@ -8,11 +8,12 @@ import type { Auction } from "./auctionModel";
 import { AuctionRepository, type CreateAuctionData, type GetAuctionsFilters } from "./auctionRepository";
 import { roundService } from "../round/roundService";
 import { initializeAuctionState, initializeAuctionStateWithTime, updateAuctionState, addRoundTimer } from "@/common/redis/auctionState";
-import { getAuctionKeysPattern } from "@/common/redis/auctionKeys";
+import { getAuctionKeysPattern, getRoundBidsKey } from "@/common/redis/auctionKeys";
 import { getRedisClient } from "@/common/db/redis";
 import { walletService } from "../wallet/walletService";
 import { getAuctionWebSocketServer } from "@/websocket/auctionWebSocket";
 import type { AuctionFinishedEvent, RoundStartedEvent } from "@/websocket/types";
+import { metricsService } from "@/common/metrics/metricsService";
 
 const logger = pino({ name: "auctionService" });
 
@@ -72,6 +73,11 @@ export class AuctionService {
 			// Start the auction (initialize Redis state)
 			await this.start(auction._id);
 
+			// Update metrics
+			metricsService.auctionCreatedTotal.inc();
+			const activeCount = await this.auctionRepository.findActiveAuctions();
+			metricsService.auctionActiveCount.set(activeCount.length);
+
 			return ServiceResponse.success("Auction created successfully", auction, StatusCodes.CREATED);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Failed to create auction";
@@ -108,6 +114,12 @@ export class AuctionService {
 			if (!auction) {
 				logger.error({ auctionId }, "Auction not found for start");
 				throw new Error(`Auction ${auctionId} not found`);
+			}
+
+			// Check if auction is already active
+			if (auction.status === "active") {
+				logger.warn({ auctionId }, "Auction is already active");
+				throw new Error("Auction is already active");
 			}
 
 			// Create first round in MongoDB FIRST (before initializing Redis)
@@ -193,7 +205,13 @@ export class AuctionService {
 			const auction = await this.auctionRepository.findById(auctionId);
 			if (!auction) {
 				logger.error({ auctionId }, "Auction not found when finishing");
-				return;
+				throw new Error(`Auction ${auctionId} not found`);
+			}
+
+			// Check if auction is already finished
+			if (auction.status === "finished") {
+				logger.warn({ auctionId }, "Auction is already finished");
+				throw new Error("Auction is already finished");
 			}
 
 			// Update MongoDB status
@@ -230,6 +248,11 @@ export class AuctionService {
 				};
 				wsServer.broadcastToAuction(auctionId, event);
 			}
+
+			// Update metrics
+			metricsService.auctionFinishedTotal.inc();
+			const activeCount = await this.auctionRepository.findActiveAuctions();
+			metricsService.auctionActiveCount.set(activeCount.length);
 
 			logger.info({ auctionId }, "Auction finished");
 		} catch (error) {
@@ -431,6 +454,59 @@ export class AuctionService {
 					"Redis state not initialized correctly"
 				);
 				throw new Error(`Redis state initialization failed: expected round ${nextRoundNumber}, got ${redisState?.round}`);
+			}
+
+			// Copy bids from previous round to new round
+			// According to TZ: one bid per user per auction, bids should be available in all rounds
+			const redis = getRedisClient();
+			const previousBidsKey = getRoundBidsKey(auctionId, currentRoundNumber);
+			const newBidsKey = getRoundBidsKey(auctionId, nextRoundNumber);
+			
+			try {
+				// Get all bids from previous round
+				const previousBids = await redis.zrange(previousBidsKey, 0, -1, "WITHSCORES");
+				
+				if (previousBids.length > 0) {
+					// Copy bids to new round using ZADD
+					// previousBids is an array: [member1, score1, member2, score2, ...]
+					for (let i = 0; i < previousBids.length; i += 2) {
+						const member = previousBids[i] as string;
+						const score = parseFloat(previousBids[i + 1] as string);
+						await redis.zadd(newBidsKey, score, member);
+					}
+					
+					const bidsCount = previousBids.length / 2;
+					logger.info(
+						{ 
+							auctionId, 
+							fromRound: currentRoundNumber, 
+							toRound: nextRoundNumber,
+							bidsCount 
+						},
+						"Copied bids from previous round to new round"
+					);
+				} else {
+					logger.info(
+						{ 
+							auctionId, 
+							fromRound: currentRoundNumber, 
+							toRound: nextRoundNumber 
+						},
+						"No bids to copy from previous round"
+					);
+				}
+			} catch (error) {
+				logger.error(
+					{ 
+						error, 
+						auctionId, 
+						fromRound: currentRoundNumber, 
+						toRound: nextRoundNumber 
+					},
+					"Error copying bids from previous round"
+				);
+				// Don't throw - this is not critical, auction can continue without copying bids
+				// But log the error for debugging
 			}
 
 			logger.info({ auctionId, nextRoundNumber, roundEndTs }, "Redis state initialized, broadcasting round_started event");
