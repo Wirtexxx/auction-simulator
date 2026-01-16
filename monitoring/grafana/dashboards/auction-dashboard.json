@@ -1,0 +1,937 @@
+{
+    "__requires": [
+        {
+            "type": "panel",
+            "id": "timeseries",
+            "name": "Time series",
+            "version": ""
+        },
+        {
+            "type": "panel",
+            "id": "stat",
+            "name": "Stat",
+            "version": ""
+        },
+        {
+            "type": "panel",
+            "id": "piechart",
+            "name": "Pie chart",
+            "version": ""
+        },
+        {
+            "type": "datasource",
+            "id": "prometheus",
+            "name": "Prometheus",
+            "version": "1.0.0"
+        },
+        {
+            "type": "grafana",
+            "id": "grafana",
+            "name": "Grafana",
+            "version": ""
+        }
+    ],
+    "uid": "auction-simulator-full",
+    "title": "Auction Simulator - Полный мониторинг",
+    "tags": ["auction", "monitoring", "backend"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 0,
+    "id": null,
+    "folderId": null,
+    "folderUid": "",
+    "refresh": "10s",
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    },
+    "timepicker": {
+        "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "1h"]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+        {
+            "id": 1,
+            "title": "HTTP Request Rate (req/sec)",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(http_request_total{app=\"auction-simulator\"}[5m])) by (method, route)",
+                    "legendFormat": "{{method}} {{route}}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "reqps",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 2,
+            "title": "HTTP Request Duration (p50, p95, p99)",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le, method, route))",
+                    "legendFormat": "p99 - {{method}} {{route}}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                },
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le, method, route))",
+                    "legendFormat": "p95 - {{method}} {{route}}",
+                    "refId": "B",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                },
+                {
+                    "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le, method, route))",
+                    "legendFormat": "p50 - {{method}} {{route}}",
+                    "refId": "C",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 3,
+            "title": "HTTP Error Rate (4xx, 5xx)",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "sum(rate(http_request_total{app=\"auction-simulator\",status_code=~\"4..\"}[5m])) by (status_code, route)",
+                    "legendFormat": "{{status_code}} {{route}}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                },
+                {
+                    "expr": "sum(rate(http_request_total{app=\"auction-simulator\",status_code=~\"5..\"}[5m])) by (status_code, route)",
+                    "legendFormat": "{{status_code}} {{route}}",
+                    "refId": "B",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "reqps",
+                    "min": 0,
+                    "color": {
+                        "mode": "palette-classic"
+                    }
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 4,
+            "title": "HTTP Requests by Status Code",
+            "type": "piechart",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "sum(increase(http_request_total{app=\"auction-simulator\"}[1h])) by (status_code)",
+                    "legendFormat": "{{status_code}}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "tooltip": false,
+                            "viz": false,
+                            "legend": false
+                        }
+                    }
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "right"
+                },
+                "pieType": "pie",
+                "tooltip": {
+                    "mode": "single"
+                },
+                "reduceOptions": {
+                    "values": false,
+                    "calcs": ["lastNotNull"],
+                    "fields": ""
+                }
+            }
+        },
+        {
+            "id": 5,
+            "title": "Активные аукционы",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "auction_active_count{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0,
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            { "value": 0, "color": "green" },
+                            { "value": 1, "color": "yellow" },
+                            { "value": 5, "color": "red" }
+                        ]
+                    }
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 6,
+            "title": "Активные раунды",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "round_active_count{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 7,
+            "title": "Замороженные средства",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "frozen_balance_total{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0,
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 8,
+            "title": "Создано аукционов (всего)",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "auction_created_total{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 9,
+            "title": "Завершено аукционов (всего)",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 0, "y": 20 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "auction_finished_total{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 10,
+            "title": "Размещено ставок (всего)",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 6, "y": 20 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "bid_placed_total{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 11,
+            "title": "Сумма всех ставок",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 12, "y": 20 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "bid_amount_sum{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0,
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 12,
+            "title": "Завершено раундов (всего)",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 18, "y": 20 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "round_settled_total{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 13,
+            "title": "Победителей (всего)",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 0, "y": 24 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "winners_total{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 14,
+            "title": "Распределено подарков (всего)",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 6, "y": 24 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "gifts_distributed_total{app=\"auction-simulator\"}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "short",
+                    "min": 0
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 15,
+            "title": "Скорость размещения ставок",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "rate(bid_placed_total{app=\"auction-simulator\"}[5m])",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "min": 0,
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 16,
+            "title": "Скорость завершения раундов",
+            "type": "stat",
+            "gridPos": { "h": 4, "w": 6, "x": 18, "y": 24 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "rate(round_settled_total{app=\"auction-simulator\"}[5m])",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "min": 0,
+                    "decimals": 2
+                }
+            },
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "orientation": "auto"
+            }
+        },
+        {
+            "id": 17,
+            "title": "Время выполнения Settlement (p50, p95, p99)",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.99, sum(rate(settlement_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le))",
+                    "legendFormat": "p99",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                },
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(settlement_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le))",
+                    "legendFormat": "p95",
+                    "refId": "B",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                },
+                {
+                    "expr": "histogram_quantile(0.50, sum(rate(settlement_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le))",
+                    "legendFormat": "p50",
+                    "refId": "C",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 18,
+            "title": "Время обработки ставки (p50, p95, p99)",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.99, sum(rate(bid_processing_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le))",
+                    "legendFormat": "p99",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                },
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(bid_processing_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le))",
+                    "legendFormat": "p95",
+                    "refId": "B",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                },
+                {
+                    "expr": "histogram_quantile(0.50, sum(rate(bid_processing_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le))",
+                    "legendFormat": "p50",
+                    "refId": "C",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 19,
+            "title": "Время выполнения запросов к БД (p95)",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(database_query_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le, operation, collection))",
+                    "legendFormat": "p95 - {{operation}} {{collection}}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 20,
+            "title": "Время выполнения операций Redis (p95)",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "histogram_quantile(0.95, sum(rate(redis_operation_duration_seconds_bucket{app=\"auction-simulator\"}[5m])) by (le, operation))",
+                    "legendFormat": "p95 - {{operation}}",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "s",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 21,
+            "title": "График создания аукционов",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "rate(auction_created_total{app=\"auction-simulator\"}[5m])",
+                    "legendFormat": "Создано аукционов/сек",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 22,
+            "title": "График размещения ставок",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "rate(bid_placed_total{app=\"auction-simulator\"}[5m])",
+                    "legendFormat": "Ставок/сек",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 23,
+            "title": "График завершения раундов",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "rate(round_settled_total{app=\"auction-simulator\"}[5m])",
+                    "legendFormat": "Раундов/сек",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        },
+        {
+            "id": 24,
+            "title": "График распределения подарков",
+            "type": "timeseries",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 },
+            "datasource": {
+                "type": "prometheus",
+                "uid": "Prometheus"
+            },
+            "targets": [
+                {
+                    "expr": "rate(gifts_distributed_total{app=\"auction-simulator\"}[5m])",
+                    "legendFormat": "Подарков/сек",
+                    "refId": "A",
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "Prometheus"
+                    }
+                }
+            ],
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "ops",
+                    "min": 0
+                }
+            },
+            "options": {
+                "legend": {
+                    "displayMode": "table",
+                    "placement": "bottom"
+                }
+            }
+        }
+    ],
+    "templating": {
+        "list": []
+    },
+    "annotations": {
+        "list": [
+            {
+                "builtIn": 1,
+                "datasource": {
+                    "type": "grafana",
+                    "uid": "-- Grafana --"
+                },
+                "enable": true,
+                "hide": true,
+                "iconColor": "rgba(0, 211, 255, 1)",
+                "name": "Annotations & Alerts",
+                "type": "dashboard"
+            }
+        ]
+    }
+}

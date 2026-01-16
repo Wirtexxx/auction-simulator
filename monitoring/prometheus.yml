@@ -1,0 +1,15 @@
+global:
+    scrape_interval: 15s # Scrape targets every 15 seconds
+    evaluation_interval: 15s # Evaluate rules every 15 seconds
+    external_labels:
+        monitor: "auction-simulator"
+
+# Scrape configurations
+scrape_configs:
+    # Backend metrics
+    - job_name: "backend"
+      static_configs:
+          - targets: ["backend:8080"]
+            labels:
+                service: "auction-backend"
+                environment: "production"

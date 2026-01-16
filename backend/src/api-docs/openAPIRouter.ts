@@ -11,4 +11,14 @@ openAPIRouter.get("/swagger.json", (_req: Request, res: Response) => {
 	res.send(openAPIDocument);
 });
 
-openAPIRouter.use("/", swaggerUi.serve, swaggerUi.setup(openAPIDocument));
+openAPIRouter.use(
+	"/",
+	swaggerUi.serve,
+	swaggerUi.setup(openAPIDocument, {
+		customCss: ".swagger-ui .topbar { display: none }",
+		customSiteTitle: "Auction Simulator API",
+		swaggerOptions: {
+			persistAuthorization: true,
+		},
+	}),
+);

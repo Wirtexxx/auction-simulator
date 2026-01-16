@@ -8,7 +8,16 @@ import { env } from "@/common/utils/envConfig";
 
 const logger = pino({
 	level: env.isProduction ? "info" : "debug",
-	transport: env.isProduction ? undefined : { target: "pino-pretty" },
+	transport: env.isProduction 
+		? undefined 
+		: {
+			target: "pino-pretty",
+			options: {
+				colorize: true,
+				translateTime: "HH:MM:ss Z",
+				ignore: "pid,hostname",
+			},
+		},
 });
 
 const getLogLevel = (status: number) => {
@@ -34,12 +43,26 @@ const httpLogger = pinoHttp({
 	customLogLevel: (_req, res) => getLogLevel(res.statusCode),
 	customSuccessMessage: (req) => `${req.method} ${req.url} completed`,
 	customErrorMessage: (_req, res) => `Request failed with status code: ${res.statusCode}`,
-	// Only log response bodies in development
 	serializers: {
-		req: (req) => ({
-			method: req.method,
-			url: req.url,
-			id: req.id,
+		req: (req) => {
+			const serialized: Record<string, unknown> = {
+				method: req.method,
+				url: req.url,
+				id: req.id,
+			};
+			
+			if (req.body && Object.keys(req.body).length > 0) {
+				serialized.body = req.body;
+			}
+			
+			if (req.headers.authorization) {
+				serialized.auth = req.headers.authorization;
+			}
+			
+			return serialized;
+		},
+		res: (res) => ({
+			statusCode: res.statusCode,
 		}),
 	},
 });

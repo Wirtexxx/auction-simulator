@@ -1,18 +1,45 @@
-import type { Request, RequestHandler, Response } from "express";
+import type { Request, Response } from "express";
+import { StatusCodes } from "http-status-codes";
 
-import { userService } from "@/api/user/userService";
+import { ServiceResponse } from "@/common/models/serviceResponse";
+import { userService, type AuthResponse } from "./userService";
 
-class UserController {
-	public getUsers: RequestHandler = async (_req: Request, res: Response) => {
-		const serviceResponse = await userService.findAll();
-		res.status(serviceResponse.statusCode).send(serviceResponse);
-	};
+export const userController = {
+    authenticate: async (req: Request, res: Response) => {
+        let { initData } = req.body;
+        
+        if (typeof initData !== "string") {
+            const serviceResponse = ServiceResponse.failure(
+                "initData must be a string",
+                null as unknown as AuthResponse,
+                StatusCodes.BAD_REQUEST,
+            );
+            res.status(serviceResponse.statusCode).send(serviceResponse);
+            return;
+        }
+        
+        // Handle case where initData might be a JSON-encoded string
+        // (double-encoded: string -> JSON string -> JSON string)
+        if (initData.startsWith('"') && initData.endsWith('"')) {
+            try {
+                const parsed = JSON.parse(initData);
+                if (typeof parsed === "string") {
+                    initData = parsed;
+                }
+            } catch {
+                // If JSON parsing fails, use as is
+            }
+        }
+        
+        const serviceResponse = await userService.authenticateWithTelegram(
+            initData
+        );
+        res.status(serviceResponse.statusCode).send(serviceResponse);
+    },
 
-	public getUser: RequestHandler = async (req: Request, res: Response) => {
-		const id = Number.parseInt(req.params.id as string, 10);
-		const serviceResponse = await userService.findById(id);
-		res.status(serviceResponse.statusCode).send(serviceResponse);
-	};
-}
-
-export const userController = new UserController();
+    getUser: async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const serviceResponse = await userService.getUserById(Number(id));
+        res.status(serviceResponse.statusCode).send(serviceResponse);
+    },
+};

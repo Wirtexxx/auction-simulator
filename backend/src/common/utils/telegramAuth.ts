@@ -1,0 +1,2 @@
+export { validateTelegramInitData } from "./telegramAuthHelpers";
+
