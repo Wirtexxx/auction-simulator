@@ -8,7 +8,7 @@ WORKDIR /app
 # Dependencies stage
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,id=cacheKey:pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # Development stage
 FROM base AS dev
@@ -20,7 +20,7 @@ CMD ["pnpm", "run", "dev", "--host"]
 # Build stage
 FROM base AS build
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,id=cacheKey:pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm run build
 
