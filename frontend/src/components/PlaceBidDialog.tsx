@@ -1,6 +1,12 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { getAuctionById, type Auction } from "../lib/api/auction";
+import { getWallet } from "../lib/api/wallet";
+import { getCollectionById } from "../lib/api/collection";
+import { getCurrentRound, type Round } from "../lib/api/round";
+import { getRoundBids } from "../lib/api/bid";
 import { getUser } from "../lib/authStorage";
+import { useAuctionWebSocket, type BidPlacedEvent, type RoundStartedEvent, type RoundSettledEvent, type ErrorEvent } from "../hooks/useAuctionWebSocket";
+import type { BidDisplay } from "./AuctionBidsList";
 import {
     Dialog,
     DialogContent,
@@ -9,8 +15,10 @@ import {
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
-import { Loader2, Clock, Send, X } from "lucide-react";
+import { Loader2, X, CheckCircle } from "lucide-react";
 import { Slider } from "./ui/slider";
+import { AuctionBidsList } from "./AuctionBidsList";
+import { AuctionStatusCard } from "./AuctionStatusCard";
 
 interface PlaceBidDialogProps {
     auctionId: string | null;
@@ -18,11 +26,6 @@ interface PlaceBidDialogProps {
     onOpenChange: (open: boolean) => void;
 }
 
-interface Winner {
-    name: string;
-    bid: number;
-    avatar?: string;
-}
 
 const SLIDER_CONSTANTS = {
     MIN_PERCENT: 0,
@@ -48,10 +51,10 @@ const THUMB_SIZE = {
 } as const;
 
 const DEFAULT_VALUES = {
-    CURRENT_BID: 7200,
-    MIN_BID: 4260,
-    REMAINING_TIME: 3,
-    REMAINING_ITEMS: 9900,
+    CURRENT_BID: 100,
+    MIN_BID: 100,
+    REMAINING_TIME: 0,
+    REMAINING_ITEMS: 0,
     SLIDER_VALUE: 50,
 } as const;
 
@@ -64,12 +67,6 @@ const calculateRemainingTime = (auction: Auction): number => {
     return Math.max(0, Math.floor((endTime - Date.now()) / 1000));
 };
 
-const formatCountdown = (seconds: number): string => {
-    if (seconds <= 0) return "00:00";
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-};
 
 const cubicEaseInOut = (t: number): number => {
     return t < 0.5
@@ -89,22 +86,155 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
     const [auction, setAuction] = useState<Auction | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [currentBid, setCurrentBid] = useState(DEFAULT_VALUES.CURRENT_BID);
-    const [minBid, setMinBid] = useState(DEFAULT_VALUES.MIN_BID);
-    const [remainingTime, setRemainingTime] = useState(DEFAULT_VALUES.REMAINING_TIME);
-    const [remainingItems, setRemainingItems] = useState(DEFAULT_VALUES.REMAINING_ITEMS);
-    const [sliderValue, setSliderValue] = useState(DEFAULT_VALUES.SLIDER_VALUE);
-    const [topWinners, setTopWinners] = useState<Winner[]>([
-        { name: "Alicia Brown", bid: 9925 },
-        { name: "Robert Stock", bid: 9000 },
-    ]);
+    const [currentBid, setCurrentBid] = useState<number>(DEFAULT_VALUES.CURRENT_BID);
+    const [minBid, setMinBid] = useState<number>(DEFAULT_VALUES.MIN_BID);
+    const [sliderValue, setSliderValue] = useState<number>(DEFAULT_VALUES.SLIDER_VALUE);
+    const [bids, setBids] = useState<BidDisplay[]>([]);
     const [isEditingBid, setIsEditingBid] = useState(false);
     const [editBidValue, setEditBidValue] = useState("");
+    const [availableBalance, setAvailableBalance] = useState(0);
+    const [isSettling, setIsSettling] = useState(false);
+    const [roundEndTs, setRoundEndTs] = useState<number | null>(null);
+    const [placingBid, setPlacingBid] = useState(false);
+    const [currentRound, setCurrentRound] = useState<Round | null>(null);
+    const [collection, setCollection] = useState<any>(null);
 
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const fetchingRef = useRef(false);
     const auctionRef = useRef<Auction | null>(null);
     const bidInputRef = useRef<HTMLInputElement>(null);
+
+    // Define fetchAvailableBalance first, before it's used in other callbacks
+    const fetchAvailableBalance = useCallback(async () => {
+        if (!user?._id) return;
+        try {
+            const response = await getWallet(user._id);
+            if (response.success && response.responseObject) {
+                // Use available_balance if provided, otherwise fallback to balance
+                const available = response.responseObject.available_balance ?? response.responseObject.balance;
+                setAvailableBalance(available);
+            }
+        } catch (err) {
+            console.error("Error fetching balance:", err);
+        }
+    }, [user?._id]);
+
+    // Memoize WebSocket callbacks to prevent reconnections
+    const handleBidPlaced = useCallback((event: BidPlacedEvent) => {
+        const newBid: BidDisplay = {
+            userId: event.data.userId,
+            amount: event.data.amount,
+            timestamp: event.data.timestamp,
+            username: event.data.userId === user?._id ? `${user.first_name} ${user.last_name || ""}`.trim() : undefined,
+        };
+        setBids((prev) => {
+            // Check if bid already exists (same timestamp)
+            const exists = prev.some(
+                (b) => b.userId === event.data.userId && b.timestamp === event.data.timestamp
+            );
+            if (exists) return prev;
+            
+            // If user already has a bid, replace it with the new one (latest bid wins)
+            // Otherwise, add the new bid
+            const userBidIndex = prev.findIndex((b) => b.userId === event.data.userId);
+            if (userBidIndex >= 0) {
+                // Replace existing bid with new one
+                const updated = [...prev];
+                updated[userBidIndex] = newBid;
+                return updated;
+            }
+            
+            return [...prev, newBid];
+        });
+        if (event.data.userId === user?._id) {
+            // User can place multiple bids, so we don't set hasUserBid to true
+            // Instead, we just update the balance
+            setPlacingBid(false);
+            // Fetch updated balance from server to get accurate frozen balance
+            // Small delay to ensure backend has processed the freeze
+            setTimeout(() => {
+                fetchAvailableBalance();
+            }, 500);
+        }
+    }, [user, fetchAvailableBalance]);
+
+    const handleRoundStarted = useCallback((event: RoundStartedEvent) => {
+        setRoundEndTs(event.data.roundEndTs);
+        setIsSettling(false);
+        setBids([]); // Clear bids for new round
+        setAuction((prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                current_round_number: event.data.roundNumber,
+                current_round_started_at: new Date(event.data.roundEndTs - (prev.round_duration * 1000)).toISOString(),
+            };
+        });
+        // Fetch current round to get gift_ids
+        if (auctionId) {
+            getCurrentRound(auctionId).then((response) => {
+                if (response.success && response.responseObject) {
+                    setCurrentRound(response.responseObject);
+                }
+            }).catch((error) => {
+                console.error("Error loading current round:", error);
+            });
+            
+            // Fetch bids for new round
+            getRoundBids(auctionId, event.data.roundNumber).then((response) => {
+                if (response.success && response.responseObject) {
+                    const bidsData: BidDisplay[] = response.responseObject.map((bid) => ({
+                        userId: bid.userId,
+                        amount: bid.amount,
+                        timestamp: bid.timestamp,
+                    }));
+                    setBids(bidsData);
+                }
+            }).catch((error) => {
+                console.error("Error loading bids:", error);
+            });
+        }
+    }, [auctionId]);
+
+    const handleRoundClosed = useCallback(() => {
+        setIsSettling(true);
+    }, []);
+
+    const handleRoundSettled = useCallback((event: RoundSettledEvent) => {
+        setIsSettling(false);
+        // Mark winners
+        setBids((prev) =>
+            prev.map((bid) => ({
+                ...bid,
+                isWinner: event.data.winners.some(
+                    (w) => w.userId === bid.userId && w.amount === bid.amount
+                ),
+            }))
+        );
+    }, []);
+
+    const handleAuctionFinished = useCallback(() => {
+        setAuction((prev) => {
+            if (!prev) return prev;
+            return { ...prev, status: "finished" };
+        });
+    }, []);
+
+    const handleError = useCallback((event: ErrorEvent) => {
+        setError(event.error || event.message || "WebSocket error");
+    }, []);
+
+    // WebSocket connection
+    const { isConnected, sendBid, error: wsError } = useAuctionWebSocket({
+        auctionId: auctionId || null,
+        enabled: open && !!auctionId,
+        onBidPlaced: handleBidPlaced,
+        onRoundStarted: handleRoundStarted,
+        onRoundClosed: handleRoundClosed,
+        onRoundSettled: handleRoundSettled,
+        onAuctionFinished: handleAuctionFinished,
+        onError: handleError,
+    });
 
     const getSliderColor = useCallback((percent: number): string => {
         const { GREEN, RED } = COLOR_RANGES;
@@ -179,15 +309,65 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
     useEffect(() => {
         if (open && auctionId && !fetchingRef.current) {
             fetchingRef.current = true;
-            fetchAuction().finally(() => {
-                fetchingRef.current = false;
-            });
+            fetchAuction();
+            fetchAvailableBalance();
+        } else if (!open) {
+            fetchingRef.current = false;
         }
-    }, [open, auctionId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, auctionId, fetchAvailableBalance]); // fetchAuction is stable, no need in deps
+
+    // Fetch current round, collection, and bids when auction is loaded
+    useEffect(() => {
+        if (auction && auction.status === "active" && auctionId) {
+            // Fetch current round
+            getCurrentRound(auctionId).then((response) => {
+                if (response.success && response.responseObject) {
+                    setCurrentRound(response.responseObject);
+                }
+            }).catch((error) => {
+                console.error("Error loading current round:", error);
+            });
+
+            // Fetch collection
+            getCollectionById(auction.collection_id).then((response) => {
+                if (response.success && response.responseObject) {
+                    setCollection(response.responseObject);
+                }
+            }).catch((error) => {
+                console.error("Error loading collection:", error);
+            });
+
+            // Fetch bids for current round
+            const roundNumber = auction.current_round_number;
+            if (roundNumber) {
+                getRoundBids(auctionId, roundNumber).then((response) => {
+                    if (response.success && response.responseObject) {
+                        const bidsData: BidDisplay[] = response.responseObject.map((bid) => ({
+                            userId: bid.userId,
+                            amount: bid.amount,
+                            timestamp: bid.timestamp,
+                        }));
+                        setBids(bidsData);
+                    }
+                }).catch((error) => {
+                    console.error("Error loading bids:", error);
+                });
+            }
+        }
+    }, [auction, auctionId]);
 
     useEffect(() => {
         if (auction) {
             auctionRef.current = auction;
+            // Calculate round end time
+            if (auction.current_round_started_at) {
+                const startTime = new Date(auction.current_round_started_at).getTime();
+                const endTime = startTime + auction.round_duration * 1000;
+                setRoundEndTs(endTime);
+            }
+            // Set min bid (can be based on auction rules)
+            setMinBid(100); // Default minimum
         }
     }, [auction]);
 
@@ -197,15 +377,14 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
                 clearInterval(intervalRef.current);
                 intervalRef.current = null;
             }
+            // Reset state when dialog closes
+            setBids([]);
+            setIsSettling(false);
             return;
         }
 
         intervalRef.current = setInterval(() => {
-            const currentAuction = auctionRef.current;
-            if (currentAuction) {
-                const remaining = calculateRemainingTime(currentAuction);
-                setRemainingTime(remaining);
-            }
+            // Timer is handled by AuctionStatusCard component
         }, 1000);
 
         return () => {
@@ -213,7 +392,7 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
                 clearInterval(intervalRef.current);
             }
         };
-    }, [open]);
+    }, [open, roundEndTs]);
 
     useEffect(() => {
         if (currentBid >= minBid && minBid > 0) {
@@ -239,8 +418,6 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
             
             if (response.success && response.responseObject) {
                 setAuction(response.responseObject);
-                const remaining = calculateRemainingTime(response.responseObject);
-                setRemainingTime(remaining);
             } else {
                 setError(response.message || "Не удалось загрузить аукцион");
             }
@@ -295,8 +472,80 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
         }
     }, [handleBidInputSubmit]);
 
+    // Check if user is in top (winners list)
+    const isUserInTop = useMemo(() => {
+        if (!user?._id || !auction || bids.length === 0) {
+            return false;
+        }
+
+        const giftsPerRound = auction.gifts_per_round || 0;
+        if (giftsPerRound === 0) {
+            return false;
+        }
+
+        // Keep only the latest bid per user
+        const userBidsMap = new Map<number, BidDisplay>();
+        for (const bid of bids) {
+            const existingBid = userBidsMap.get(bid.userId);
+            if (!existingBid || bid.timestamp > existingBid.timestamp) {
+                userBidsMap.set(bid.userId, bid);
+            }
+        }
+
+        // Sort: top by amount (DESC), then by timestamp (ASC - earlier = better)
+        const uniqueBids = Array.from(userBidsMap.values());
+        const sortedBids = uniqueBids.sort((a, b) => {
+            if (b.amount !== a.amount) {
+                return b.amount - a.amount;
+            }
+            return a.timestamp - b.timestamp;
+        });
+
+        // Check if current user is in top N
+        const topBids = sortedBids.slice(0, giftsPerRound);
+        return topBids.some((bid) => bid.userId === user._id);
+    }, [bids, user?._id, auction]);
+
     const handlePlaceBid = useCallback(() => {
-    }, []);
+        if (!auctionId || !user?._id) {
+            setError("Необходима авторизация");
+            return;
+        }
+
+        if (isUserInTop) {
+            setError("Вы уже находитесь в топе. Невозможно разместить новую ставку.");
+            return;
+        }
+
+        if (currentBid < minBid) {
+            setError(`Минимальная ставка: ${minBid}`);
+            return;
+        }
+
+        if (currentBid > availableBalance) {
+            setError("Недостаточно средств");
+            return;
+        }
+
+        if (isSettling) {
+            setError("Раунд закрывается, новые ставки не принимаются");
+            return;
+        }
+
+        if (!isConnected) {
+            setError("Нет подключения к серверу");
+            return;
+        }
+
+        setPlacingBid(true);
+        setError(null);
+
+        const success = sendBid(currentBid);
+        if (!success) {
+            setPlacingBid(false);
+            setError("Не удалось отправить ставку");
+        }
+    }, [auctionId, user, currentBid, minBid, availableBalance, isSettling, isConnected, isUserInTop, sendBid]);
 
     const handleButtonMouseEnter = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
         e.currentTarget.style.backgroundColor = getSliderHoverColor(sliderValue);
@@ -341,17 +590,6 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
         );
     };
 
-    const renderInfoCard = (icon: React.ReactNode, value: string | number, label: string) => (
-        <Card className="py-0">
-            <CardContent className="p-4 text-center">
-                <div className="text-base font-bold text-primary flex items-center justify-center gap-1">
-                    {icon}
-                    {typeof value === "string" ? value : value.toLocaleString()}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-1">{label}</div>
-            </CardContent>
-        </Card>
-    );
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -411,23 +649,28 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3">
-                                {renderInfoCard(
-                                    <span>⭐</span>,
-                                    minBid,
-                                    "min.bid"
-                                )}
-                                {renderInfoCard(
-                                    <Clock className="h-3 w-3" />,
-                                    formatCountdown(remainingTime),
-                                    "next round"
-                                )}
-                                {renderInfoCard(
-                                    <Send className="h-3 w-3" />,
-                                    remainingItems,
-                                    "left"
-                                )}
-                            </div>
+                            <AuctionStatusCard
+                                auction={auction}
+                                currentRoundEndTs={roundEndTs || undefined}
+                                currentRoundNumber={auction?.current_round_number}
+                                currentRoundGiftsCount={currentRound?.gift_ids?.length}
+                                totalGifts={collection?.total_amount}
+                                totalBids={bids.length}
+                                isSettling={isSettling}
+                            />
+
+                            {wsError && (
+                                <Alert variant="destructive">
+                                    <AlertDescription>{wsError}</AlertDescription>
+                                </Alert>
+                            )}
+
+                            {error && (
+                                <Alert variant="destructive">
+                                    <AlertDescription>{error}</AlertDescription>
+                                </Alert>
+                            )}
+
 
                             <Card className="py-0">
                                 <CardContent className="p-4">
@@ -453,40 +696,20 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
                                 </CardContent>
                             </Card>
 
-                            <Card className="py-0">
-                                <CardContent className="p-4">
-                                    <div className="text-xs text-muted-foreground mb-3">TOP 3 WINNERS</div>
-                                    <div className="space-y-3">
-                                        {topWinners.map((winner, index) => (
-                                            <div key={index} className="flex items-center gap-3">
-                                                <div
-                                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                                        index === 0
-                                                            ? "bg-yellow-500 text-yellow-900"
-                                                            : "bg-muted text-muted-foreground"
-                                                    }`}
-                                                >
-                                                    {index + 1}
-                                                </div>
-                                                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                                    {winner.name[0]}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-semibold truncate">{winner.name}</div>
-                                                </div>
-                                                <div className="text-xs font-bold text-primary">
-                                                    ⭐ {winner.bid.toLocaleString()}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            <AuctionBidsList
+                                bids={bids}
+                                giftsPerRound={auction.gifts_per_round}
+                                currentUserId={user?._id}
+                            />
 
-                            <div className="sticky bottom-0 left-0 right-0 pt-4 pb-4">
+                            <div className="sticky bottom-0 left-0 right-0 pt-4 pb-4 bg-background">
+                                <div className="mb-2 text-xs text-muted-foreground text-center">
+                                    Доступно: ⭐ {availableBalance.toLocaleString()}
+                                </div>
                                 <Button
                                     onClick={handlePlaceBid}
-                                    className="w-full h-12 text-lg font-semibold text-white transition-all duration-200"
+                                    disabled={isSettling || placingBid || !isConnected || currentBid > availableBalance || isUserInTop}
+                                    className="w-full h-12 text-lg font-semibold text-white transition-all duration-200 disabled:opacity-50"
                                     size="lg"
                                     style={{
                                         backgroundColor: sliderColor,
@@ -495,7 +718,20 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
                                     onMouseEnter={handleButtonMouseEnter}
                                     onMouseLeave={handleButtonMouseLeave}
                                 >
-                                    Разместить ставку ⭐ {currentBid.toLocaleString()}
+                                    {placingBid ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                            Отправка...
+                                        </>
+                                    ) : isSettling ? (
+                                        "Раунд закрывается"
+                                    ) : !isConnected ? (
+                                        "Подключение..."
+                                    ) : isUserInTop ? (
+                                        "Вы уже в топе"
+                                    ) : (
+                                        `Разместить ставку ⭐ ${currentBid.toLocaleString()}`
+                                    )}
                                 </Button>
                             </div>
                         </div>

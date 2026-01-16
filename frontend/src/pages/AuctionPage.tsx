@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { getAuctions, type Auction } from "../lib/api/auction";
 import { getCollectionById } from "../lib/api/collection";
 import type { Collection } from "../lib/api/types";
+import { useAuctionWebSocket, type RoundStartedEvent, type RoundClosedEvent, type AuctionFinishedEvent } from "../hooks/useAuctionWebSocket";
 import {
     Card,
     CardContent,
@@ -11,7 +12,7 @@ import {
 } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { PlaceBidDialog } from "../components/PlaceBidDialog";
-import { Gavel, Loader2, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Gavel, Loader2, CheckCircle, XCircle } from "lucide-react";
 
 interface AuctionWithCollection extends Auction {
     collection?: Collection;
@@ -21,27 +22,61 @@ export function AuctionPage() {
     const [auctions, setAuctions] = useState<AuctionWithCollection[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [currentTime, setCurrentTime] = useState(Date.now());
     const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(null);
     const [isBidDialogOpen, setIsBidDialogOpen] = useState(false);
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    
+    // Get active auction for WebSocket
+    const activeAuction = auctions.find((a) => a.status === "active");
+    
+    // Memoize WebSocket callbacks
+    const handleRoundStarted = useCallback((event: RoundStartedEvent) => {
+        setAuctions((prev) =>
+            prev.map((a) =>
+                a._id === event.data.auctionId
+                    ? {
+                          ...a,
+                          current_round_number: event.data.roundNumber,
+                          current_round_started_at: new Date(
+                              event.data.roundEndTs - (a.round_duration * 1000)
+                          ).toISOString(),
+                      }
+                    : a
+            )
+        );
+    }, []);
+
+    const handleRoundClosed = useCallback((event: RoundClosedEvent) => {
+        // Update auction state
+        setAuctions((prev) =>
+            prev.map((a) =>
+                a._id === event.data.auctionId ? { ...a } : a
+            )
+        );
+    }, []);
+
+    const handleAuctionFinished = useCallback((event: AuctionFinishedEvent) => {
+        setAuctions((prev) =>
+            prev.map((a) =>
+                a._id === event.data.auctionId
+                    ? { ...a, status: "finished" as const }
+                    : a
+            )
+        );
+    }, []);
+
+    // WebSocket for real-time updates
+    useAuctionWebSocket({
+        auctionId: activeAuction?._id || null,
+        enabled: !!activeAuction,
+        onRoundStarted: handleRoundStarted,
+        onRoundClosed: handleRoundClosed,
+        onAuctionFinished: handleAuctionFinished,
+    });
 
     useEffect(() => {
         fetchAuctions();
-    }, []);
+    }, []); // Only fetch once on mount
 
-    useEffect(() => {
-        // Update current time every second for countdown
-        intervalRef.current = setInterval(() => {
-            setCurrentTime(Date.now());
-        }, 1000);
-
-        return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-            }
-        };
-    }, []);
 
     const fetchAuctions = async () => {
         try {
@@ -95,52 +130,6 @@ export function AuctionPage() {
         }
     };
 
-    const formatDuration = (seconds: number): string => {
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        if (minutes > 0) {
-            return remainingSeconds > 0
-                ? `${minutes}м ${remainingSeconds}с`
-                : `${minutes}м`;
-        }
-        return `${remainingSeconds}с`;
-    };
-
-    const getRemainingTime = (auction: Auction): number | null => {
-        if (auction.status !== "active" || !auction.current_round_started_at) {
-            return null;
-        }
-
-        const roundStartTime = new Date(
-            auction.current_round_started_at
-        ).getTime();
-        const endTime = roundStartTime + auction.round_duration * 1000;
-        const remaining = Math.max(
-            0,
-            Math.floor((endTime - currentTime) / 1000)
-        );
-
-        return remaining;
-    };
-
-    const formatCountdown = (seconds: number): string => {
-        if (seconds <= 0) {
-            return "00:00";
-        }
-
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-
-        if (hours > 0) {
-            return `${hours.toString().padStart(2, "0")}:${minutes
-                .toString()
-                .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-        }
-        return `${minutes.toString().padStart(2, "0")}:${secs
-            .toString()
-            .padStart(2, "0")}`;
-    };
 
     if (loading) {
         return (
@@ -187,8 +176,9 @@ export function AuctionPage() {
                         </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {auctions.map((auction) => (
+                    <div className="space-y-6">
+                        {auctions.map((auction) => {
+                            return (
                             <Card
                                 key={auction._id}
                                 className="cursor-pointer hover:border-primary transition-all"
@@ -220,7 +210,7 @@ export function AuctionPage() {
                                         </CardDescription>
                                     )}
                                 </CardHeader>
-                                <CardContent className="space-y-3">
+                                <CardContent className="space-y-4">
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-muted-foreground">
                                             Статус:
@@ -244,61 +234,7 @@ export function AuctionPage() {
                                         </div>
                                     </div>
 
-                                    {auction.status === "active" &&
-                                        (() => {
-                                            const remaining =
-                                                getRemainingTime(auction);
-                                            return remaining !== null &&
-                                                remaining > 0 ? (
-                                                <div className="flex justify-between items-center bg-muted rounded-lg p-3 border border-primary/30">
-                                                    <span className="text-sm text-muted-foreground">
-                                                        Осталось времени:
-                                                    </span>
-                                                    <div className="flex items-center gap-2">
-                                                        <Clock className="w-4 h-4 text-primary animate-pulse" />
-                                                        <span className="text-lg font-bold text-primary font-mono">
-                                                            {formatCountdown(
-                                                                remaining
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ) : null;
-                                        })()}
-
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-muted-foreground">
-                                            Раунд:
-                                        </span>
-                                        <span className="text-sm font-semibold">
-                                            #{auction.current_round_number}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-muted-foreground">
-                                            Подарков в раунде:
-                                        </span>
-                                        <span className="text-sm font-semibold text-primary">
-                                            {auction.gifts_per_round}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm text-muted-foreground">
-                                            Длительность раунда:
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                            <Clock className="w-4 h-4 text-primary" />
-                                            <span className="text-sm font-semibold">
-                                                {formatDuration(
-                                                    auction.round_duration
-                                                )}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex justify-between items-center">
+                                    <div className="flex justify-between items-center pt-2 border-t">
                                         <span className="text-sm text-muted-foreground">
                                             Дата создания:
                                         </span>
@@ -314,7 +250,8 @@ export function AuctionPage() {
                                     </div>
                                 </CardContent>
                             </Card>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
 

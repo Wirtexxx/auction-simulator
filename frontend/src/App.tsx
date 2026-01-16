@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthPage } from "./pages/AuthPage";
 import { AuctionPage } from "./pages/AuctionPage";
+import { AuctionDetailPage } from "./pages/AuctionDetailPage";
 import { CollectionsPage } from "./pages/CollectionsPage";
 import { CollectionDetailPage } from "./pages/CollectionDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -51,6 +52,16 @@ function App() {
                         <ProtectedRoute>
                             <AppLayout>
                                 <AuctionPage />
+                            </AppLayout>
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/app/auction/:id"
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout>
+                                <AuctionDetailPage />
                             </AppLayout>
                         </ProtectedRoute>
                     }

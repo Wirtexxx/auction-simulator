@@ -10,7 +10,7 @@ import {
     CardDescription,
 } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { Gift, Loader2 } from "lucide-react";
+import { Gift, Loader2, CheckCircle } from "lucide-react";
 
 export function CollectionsPage() {
     const navigate = useNavigate();
@@ -106,6 +106,12 @@ export function CollectionsPage() {
                                     <CardTitle className="text-center">
                                         {collection.title}
                                     </CardTitle>
+                                    {collection.is_sold && (
+                                        <div className="flex items-center justify-center gap-2 mt-2 px-3 py-1 bg-green-500/20 text-green-600 rounded-full text-sm font-semibold">
+                                            <CheckCircle className="w-4 h-4" />
+                                            Продано
+                                        </div>
+                                    )}
                                     {collection.description && (
                                         <CardDescription className="text-center line-clamp-2">
                                             {collection.description}

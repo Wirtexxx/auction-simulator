@@ -118,12 +118,14 @@ export function AdminAuctionPage() {
                     <SelectValue placeholder="Выберите коллекцию" />
                   </SelectTrigger>
                   <SelectContent>
-                    {collections.map((collection) => (
-                      <SelectItem key={collection._id} value={collection._id}>
-                        {collection.emoji ? `${collection.emoji} ` : ''}{collection.title}
-                        {collection.description ? ` - ${collection.description}` : ''}
-                      </SelectItem>
-                    ))}
+                    {collections
+                      .filter((collection) => !collection.is_sold)
+                      .map((collection) => (
+                        <SelectItem key={collection._id} value={collection._id}>
+                          {collection.emoji ? `${collection.emoji} ` : ''}{collection.title}
+                          {collection.description ? ` - ${collection.description}` : ''}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               )}

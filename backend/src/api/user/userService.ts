@@ -59,15 +59,17 @@ export class UserService {
 			if (!user) {
 				const userData = createUserDataFromTelegram(telegramUser);
 				user = await this.userRepository.create(userData);
-				
-				// Automatically create wallet for new user
+			}
+
+			// Ensure wallet exists for user (create if doesn't exist)
+			const existingWallet = await walletService.getWalletById(user._id);
+			if (!existingWallet.success) {
 				const walletResponse = await walletService.createWallet({ user_id: user._id, balance: 0 });
 				if (walletResponse.success) {
 					if (env.isDevelopment) {
 						console.log(`✅ Wallet created automatically for user ${user._id}`);
 					}
 				} else {
-					// Log error but don't fail authentication if wallet creation fails
 					if (env.isDevelopment) {
 						console.error(`⚠️ Failed to create wallet for user ${user._id}:`, walletResponse.message);
 					}

@@ -16,22 +16,26 @@ const auctionSchema = new mongoose.Schema(
 			required: true,
 			default: 1,
 		},
-		current_round_number: {
-			type: Number,
-			default: 1,
-		},
-		current_round_started_at: {
-			type: Date,
-		},
-		status: {
-			type: String,
-			enum: ["active", "finished"],
-			required: true,
-		},
-		created_at: {
-			type: Date,
-			default: Date.now,
-		},
+	current_round_number: {
+		type: Number,
+		default: 1,
+	},
+	current_round_started_at: {
+		type: Date,
+	},
+	total_rounds: {
+		type: Number,
+		default: 0,
+	},
+	status: {
+		type: String,
+		enum: ["active", "finished"],
+		required: true,
+	},
+	created_at: {
+		type: Date,
+		default: Date.now,
+	},
 	},
 	{
 		timestamps: false,

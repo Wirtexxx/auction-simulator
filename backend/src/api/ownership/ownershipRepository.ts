@@ -8,7 +8,24 @@ export interface GetOwnershipsFilters {
 	offset?: number;
 }
 
+export interface CreateOwnershipData {
+	owner_id: number;
+	gift_id: string;
+	acquired_price: number;
+}
+
 export class OwnershipRepository {
+	async create(data: CreateOwnershipData): Promise<OwnershipType> {
+		const ownership = new Ownership({
+			owner_id: data.owner_id,
+			gift_id: data.gift_id,
+			acquired_price: data.acquired_price,
+			acquired_at: new Date(),
+		});
+		await ownership.save();
+		return this.toOwnershipType(ownership);
+	}
+
 	async findById(id: string): Promise<OwnershipType | null> {
 		const ownership = await Ownership.findById(id);
 		return ownership ? this.toOwnershipType(ownership) : null;

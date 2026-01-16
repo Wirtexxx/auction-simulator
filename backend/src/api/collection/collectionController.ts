@@ -5,11 +5,15 @@ import { collectionService } from "./collectionService";
 export const collectionController = {
 	createCollection: async (req: Request, res: Response) => {
 		const { title, description, total_amount, emoji } = req.body;
+		
+		// Log emoji to debug
+		console.log("Creating collection with emoji:", emoji, "Length:", emoji?.length);
+		
 		const serviceResponse = await collectionService.createCollection({
 			title,
 			description,
 			total_amount,
-			emoji,
+			emoji: emoji || "🎁", // Fallback to default if emoji is missing
 		});
 		res.status(serviceResponse.statusCode).send(serviceResponse);
 	},

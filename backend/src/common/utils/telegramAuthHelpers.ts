@@ -40,11 +40,36 @@ function validateInitDataAge(parsedData: ReturnType<typeof parse>): boolean {
 
 export function validateTelegramInitData(initDataRaw: string): InitData | null {
 	try {
+		// Handle case where initDataRaw might be a JSON-encoded string
+		let initDataString = initDataRaw;
+		if (initDataRaw.startsWith('"') && initDataRaw.endsWith('"')) {
+			try {
+				const parsed = JSON.parse(initDataRaw);
+				if (typeof parsed === "string") {
+					initDataString = parsed;
+					if (env.isDevelopment) {
+						console.log("🔧 Unwrapped JSON-encoded init data string");
+					}
+				}
+			} catch {
+				// If JSON parsing fails, use as is
+			}
+		}
+		
+		if (env.isDevelopment) {
+			console.log("🔍 Processing init data:", {
+				originalLength: initDataRaw.length,
+				processedLength: initDataString.length,
+				startsWithQuote: initDataRaw.startsWith('"'),
+				firstChars: initDataString.substring(0, 20),
+			});
+		}
+
 		// In development mode without bot token, use simple parsing
 		if (!env.TELEGRAM_BOT_TOKEN || env.TELEGRAM_BOT_TOKEN.length === 0) {
 			if (env.isDevelopment) {
 				console.warn("⚠️  TELEGRAM_BOT_TOKEN is not configured. Skipping validation in development mode.");
-				const result = parseInitDataWithoutValidation(initDataRaw);
+				const result = parseInitDataWithoutValidation(initDataString);
 				if (env.isDevelopment) {
 					console.log("✅ Parsed init data without validation:", {
 						hasUser: !!result?.user,
@@ -61,8 +86,8 @@ export function validateTelegramInitData(initDataRaw: string): InitData | null {
 		// But in dev mode, if validation fails, fallback to simple parsing
 		if (env.isDevelopment) {
 			try {
-				const parsedData = parse(initDataRaw);
-				validate(initDataRaw, env.TELEGRAM_BOT_TOKEN);
+				const parsedData = parse(initDataString);
+				validate(initDataString, env.TELEGRAM_BOT_TOKEN);
 
 				if (!validateInitDataAge(parsedData)) {
 					console.error("❌ Init data expired");
@@ -73,13 +98,13 @@ export function validateTelegramInitData(initDataRaw: string): InitData | null {
 			} catch (parseError) {
 				// In dev mode, if full validation fails, fallback to simple parsing
 				console.warn("⚠️  Full validation failed, falling back to simple parsing for mock data");
-				return parseInitDataWithoutValidation(initDataRaw);
+				return parseInitDataWithoutValidation(initDataString);
 			}
 		}
 
 		// In production, use strict validation
-		const parsedData = parse(initDataRaw);
-		validate(initDataRaw, env.TELEGRAM_BOT_TOKEN);
+		const parsedData = parse(initDataString);
+		validate(initDataString, env.TELEGRAM_BOT_TOKEN);
 
 		if (!validateInitDataAge(parsedData)) {
 			return null;

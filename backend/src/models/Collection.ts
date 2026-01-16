@@ -18,6 +18,11 @@ const collectionSchema = new mongoose.Schema(
 			required: true,
 			default: 0,
 		},
+		is_sold: {
+			type: Boolean,
+			required: true,
+			default: false,
+		},
 		created_at: {
 			type: Date,
 			default: Date.now,

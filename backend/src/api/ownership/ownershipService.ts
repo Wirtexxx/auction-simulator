@@ -2,13 +2,23 @@ import { StatusCodes } from "http-status-codes";
 
 import { ServiceResponse } from "@/common/models/serviceResponse";
 import type { Ownership } from "./ownershipModel";
-import { OwnershipRepository, type GetOwnershipsFilters } from "./ownershipRepository";
+import { OwnershipRepository, type GetOwnershipsFilters, type CreateOwnershipData } from "./ownershipRepository";
 
 export class OwnershipService {
 	private ownershipRepository: OwnershipRepository;
 
 	constructor() {
 		this.ownershipRepository = new OwnershipRepository();
+	}
+
+	async createOwnership(data: CreateOwnershipData): Promise<ServiceResponse<Ownership>> {
+		try {
+			const ownership = await this.ownershipRepository.create(data);
+			return ServiceResponse.success("Ownership created successfully", ownership, StatusCodes.CREATED);
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Failed to create ownership";
+			return ServiceResponse.failure(errorMessage, null as unknown as Ownership, StatusCodes.INTERNAL_SERVER_ERROR);
+		}
 	}
 
 	async getOwnershipById(id: string): Promise<ServiceResponse<Ownership>> {

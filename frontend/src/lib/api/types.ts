@@ -22,6 +22,8 @@ export interface AuthResponse {
 export interface Wallet {
     _id: number;
     balance: number;
+    frozen_balance?: number;
+    available_balance?: number;
 }
 
 export interface Collection {
@@ -30,6 +32,7 @@ export interface Collection {
     description?: string;
     total_amount: number;
     minted_amount: number;
+    is_sold?: boolean;
     created_at: string;
     emoji?: string; // Emoji from first gift in collection
 }

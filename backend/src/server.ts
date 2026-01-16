@@ -3,6 +3,7 @@ import express, { type Express } from "express";
 import helmet from "helmet";
 import { pino } from "pino";
 import { auctionRouter } from "@/api/auction/auctionRouter";
+import { bidRouter } from "@/api/bid/bidRouter";
 import { collectionRouter } from "@/api/collection/collectionRouter";
 import { giftRouter } from "@/api/gift/giftRouter";
 import { healthCheckRouter } from "@/api/healthCheck/healthCheckRouter";
@@ -10,6 +11,7 @@ import { ownershipRouter } from "@/api/ownership/ownershipRouter";
 import { roundRouter } from "@/api/round/roundRouter";
 import { userRouter } from "@/api/user/userRouter";
 import { walletRouter } from "@/api/wallet/walletRouter";
+import { telegramBotRouter } from "@/api/telegramBot/telegramBotRouter";
 import { openAPIRouter } from "@/api-docs/openAPIRouter";
 import errorHandler from "@/common/middleware/errorHandler";
 import rateLimiter from "@/common/middleware/rateLimiter";
@@ -40,7 +42,9 @@ app.use("/collections", collectionRouter);
 app.use("/ownerships", ownershipRouter);
 app.use("/auctions", auctionRouter);
 app.use("/rounds", roundRouter);
+app.use("/bids", bidRouter);
 app.use("/wallets", walletRouter);
+app.use("/", telegramBotRouter); // Telegram webhook: POST /webhook/telegram
 
 // Swagger UI
 app.use(openAPIRouter);

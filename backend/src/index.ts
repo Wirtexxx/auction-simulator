@@ -2,6 +2,9 @@ import { connectMongoDB, disconnectMongoDB } from "@/common/db/mongodb";
 import { connectRedis, disconnectRedis } from "@/common/db/redis";
 import { env } from "@/common/utils/envConfig";
 import { app, logger } from "@/server";
+import { initializeAuctionWebSocket } from "@/websocket/auctionWebSocket";
+import { getRoundTimerService } from "@/services/roundTimerService";
+import { recoveryService } from "@/services/recoveryService";
 
 async function startServer() {
 	try {
@@ -9,14 +12,29 @@ async function startServer() {
 		await connectMongoDB();
 		await connectRedis();
 
+		// Recover active auctions from MongoDB
+		await recoveryService.recoverActiveAuctions();
+
 		// Start server
 		const server = app.listen(env.PORT, () => {
 			const { NODE_ENV, HOST, PORT } = env;
 			logger.info(`Server (${NODE_ENV}) running on port http://${HOST}:${PORT}`);
 		});
 
+		// Initialize WebSocket server
+		initializeAuctionWebSocket(server);
+
+		// Start round timer service
+		const timerService = getRoundTimerService();
+		timerService.start();
+
 		const onCloseSignal = async () => {
 			logger.info("sigint received, shutting down");
+			
+			// Stop round timer service
+			const timerService = getRoundTimerService();
+			timerService.stop();
+			
 			server.close(async () => {
 				logger.info("server closed");
 				try {

@@ -6,6 +6,7 @@ export interface CreateCollectionData {
 	description?: string;
 	total_amount: number;
 	minted_amount?: number;
+	is_sold?: boolean;
 }
 
 export interface GetCollectionsFilters {
@@ -39,6 +40,11 @@ export class CollectionRepository {
 		return collection ? this.toCollectionType(collection) : null;
 	}
 
+	async markAsSold(id: string): Promise<CollectionType | null> {
+		const collection = await Collection.findByIdAndUpdate(id, { is_sold: true }, { new: true });
+		return collection ? this.toCollectionType(collection) : null;
+	}
+
 	async delete(id: string): Promise<boolean> {
 		const result = await Collection.findByIdAndDelete(id);
 		return result !== null;
@@ -50,6 +56,7 @@ export class CollectionRepository {
 		description?: string | null;
 		total_amount: number;
 		minted_amount: number;
+		is_sold?: boolean;
 		created_at: Date;
 	}): CollectionType {
 		return {
@@ -58,6 +65,7 @@ export class CollectionRepository {
 			description: collection.description || null,
 			total_amount: collection.total_amount,
 			minted_amount: collection.minted_amount,
+			is_sold: collection.is_sold || false,
 			created_at: collection.created_at,
 		};
 	}

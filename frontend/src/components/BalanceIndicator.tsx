@@ -19,7 +19,9 @@ export function BalanceIndicator() {
             try {
                 const response = await getWallet(user._id);
                 if (response.success && response.responseObject) {
-                    setBalance(response.responseObject.balance);
+                    // Use available_balance if provided, otherwise fallback to balance
+                    const available = response.responseObject.available_balance ?? response.responseObject.balance;
+                    setBalance(available);
                 }
             } catch (error) {
                 if (import.meta.env.DEV) {

@@ -8,6 +8,7 @@ export interface Auction {
     gifts_per_round: number;
     current_round_number: number;
     current_round_started_at: string | null;
+    total_rounds?: number;
     status: "active" | "finished";
     created_at: string;
 }
