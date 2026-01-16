@@ -60,7 +60,7 @@ export function PlaceBidPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
 
     const formatCountdown = (seconds: number): string => {
         if (seconds <= 0) {
