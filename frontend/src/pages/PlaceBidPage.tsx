@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { getAuctionById, type Auction } from "../lib/api/auction";
 import { getUser } from "../lib/authStorage";
@@ -24,9 +24,6 @@ export function PlaceBidPage() {
         { name: "Alicia Brown", bid: 9925 },
         { name: "Robert Stock", bid: 9000 },
     ]);
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const fetchingRef = useRef(false);
-    const auctionRef = useRef<Auction | null>(null);
 
     const fetchAuction = useCallback(async () => {
         if (!id) return;
@@ -61,6 +58,10 @@ export function PlaceBidPage() {
             setLoading(false);
         }
     }, [id]);
+
+    useEffect(() => {
+        fetchAuction();
+    }, [fetchAuction]);
 
     const formatCountdown = (seconds: number): string => {
         if (seconds <= 0) {

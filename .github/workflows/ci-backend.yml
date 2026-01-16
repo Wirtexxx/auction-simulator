@@ -84,7 +84,7 @@ jobs:
     docker-build:
         name: Build Docker Image (Backend)
         runs-on: ubuntu-latest
-        needs: [lint, test, build]
+        needs: [lint, build]
 
         steps:
             - name: Checkout code

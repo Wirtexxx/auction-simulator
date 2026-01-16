@@ -118,12 +118,13 @@ export function getTelegramInitData(): string {
       
       // If tgWebAppData is an object, extract init data from it
       if (typeof tgWebAppData === 'object' && tgWebAppData !== null) {
+        const data = tgWebAppData as Record<string, unknown>;
         // Check if there's a direct initData property
-        if (tgWebAppData.initData && typeof tgWebAppData.initData === 'string' && tgWebAppData.initData.length > 0) {
+        if (data.initData && typeof data.initData === 'string' && data.initData.length > 0) {
           if (import.meta.env.DEV) {
             console.log('✅ Got init data from tgWebAppData.initData');
           }
-          return tgWebAppData.initData;
+          return data.initData;
         }
         
         // Convert object to init data string
@@ -175,7 +176,7 @@ export function getTelegramInitData(): string {
 
     if (import.meta.env.DEV) {
       console.error('❌ Mock mode is enabled but init data is not available');
-      console.error('📦 window.Telegram:', (window as Record<string, unknown>).Telegram);
+      console.error('📦 window.Telegram:', (window as unknown as Record<string, unknown>).Telegram);
       console.error('📦 URL params:', window.location.search);
       console.error('📦 localStorage:', localStorage.getItem('tma-js-sdk-launch-params'));
     }
