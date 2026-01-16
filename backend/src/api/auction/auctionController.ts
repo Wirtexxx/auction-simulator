@@ -2,8 +2,8 @@ import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 
 import { ServiceResponse } from "@/common/models/serviceResponse";
-import { auctionService } from "./auctionService";
 import type { Auction } from "./auctionModel";
+import { auctionService } from "./auctionService";
 
 export const auctionController = {
 	createAuction: async (req: Request, res: Response) => {
@@ -92,5 +92,3 @@ export const auctionController = {
 		}
 	},
 };
-
-

@@ -1,18 +1,12 @@
-import { WebSocketServer, WebSocket } from "ws";
-import { IncomingMessage } from "http";
-import { parse } from "url";
+import type { IncomingMessage, Server } from "node:http";
+import { parse } from "node:url";
 import jwt from "jsonwebtoken";
 import { pino } from "pino";
+import { WebSocket, WebSocketServer } from "ws";
+import { bidService } from "@/api/bid/bidService";
 import { env } from "@/common/utils/envConfig";
 import User from "@/models/User";
-import type {
-	BidMessage,
-	SubscribeMessage,
-	UnsubscribeMessage,
-	WebSocketEvent,
-	ErrorEvent,
-} from "./types";
-import { bidService } from "@/api/bid/bidService";
+import type { BidMessage, ErrorEvent, SubscribeMessage, UnsubscribeMessage, WebSocketEvent } from "./types";
 
 const logger = pino({ name: "auctionWebSocket" });
 
@@ -27,7 +21,7 @@ export class AuctionWebSocketServer {
 	private clients: Map<number, Set<AuthenticatedWebSocket>> = new Map(); // userId -> Set of connections
 	private auctionSubscribers: Map<string, Set<AuthenticatedWebSocket>> = new Map(); // auctionId -> Set of connections
 
-	constructor(server: any) {
+	constructor(server: Server) {
 		this.wss = new WebSocketServer({
 			server,
 			path: "/ws/auction",
@@ -95,10 +89,7 @@ export class AuctionWebSocketServer {
 		});
 	}
 
-	private async authenticateConnection(
-		ws: AuthenticatedWebSocket,
-		req: IncomingMessage,
-	): Promise<boolean> {
+	private async authenticateConnection(ws: AuthenticatedWebSocket, req: IncomingMessage): Promise<boolean> {
 		try {
 			const parsedUrl = parse(req.url || "", true);
 			const token = parsedUrl.query.token as string;
@@ -122,7 +113,7 @@ export class AuctionWebSocketServer {
 			if (!this.clients.has(user._id)) {
 				this.clients.set(user._id, new Set());
 			}
-			this.clients.get(user._id)!.add(ws);
+			this.clients.get(user._id)?.add(ws);
 
 			return true;
 		} catch (error) {
@@ -171,11 +162,7 @@ export class AuctionWebSocketServer {
 		}
 
 		try {
-			const bidResponse = await bidService.placeBid(
-				message.data.auctionId,
-				ws.userId,
-				message.data.amount,
-			);
+			const bidResponse = await bidService.placeBid(message.data.auctionId, ws.userId, message.data.amount);
 
 			if (!bidResponse.success) {
 				this.sendError(ws, bidResponse.message);
@@ -199,8 +186,8 @@ export class AuctionWebSocketServer {
 			this.auctionSubscribers.set(auctionId, new Set());
 		}
 
-		this.auctionSubscribers.get(auctionId)!.add(ws);
-		ws.subscribedAuctions!.add(auctionId);
+		this.auctionSubscribers.get(auctionId)?.add(ws);
+		ws.subscribedAuctions?.add(auctionId);
 
 		logger.info({ userId: ws.userId, auctionId }, "Client subscribed to auction");
 	}
@@ -306,7 +293,7 @@ export class AuctionWebSocketServer {
 // Singleton instance
 let auctionWebSocketServer: AuctionWebSocketServer | null = null;
 
-export function initializeAuctionWebSocket(server: any): AuctionWebSocketServer {
+export function initializeAuctionWebSocket(server: Server): AuctionWebSocketServer {
 	if (!auctionWebSocketServer) {
 		auctionWebSocketServer = new AuctionWebSocketServer(server);
 	}
@@ -316,4 +303,3 @@ export function initializeAuctionWebSocket(server: any): AuctionWebSocketServer 
 export function getAuctionWebSocketServer(): AuctionWebSocketServer | null {
 	return auctionWebSocketServer;
 }
-

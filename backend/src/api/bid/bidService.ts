@@ -1,19 +1,15 @@
 import { StatusCodes } from "http-status-codes";
-import { getRedisClient } from "@/common/db/redis";
 import { pino } from "pino";
-import {
-	getAuctionUsersKey,
-	getRoundBidsKey,
-	getFrozenBalanceKey,
-} from "@/common/redis/auctionKeys";
-import { getAuctionState, isRoundActive } from "@/common/redis/auctionState";
+import { getRedisClient } from "@/common/db/redis";
+import { metricsService } from "@/common/metrics/metricsService";
 import { ServiceResponse } from "@/common/models/serviceResponse";
-import { walletService } from "../wallet/walletService";
-import { auctionService } from "../auction/auctionService";
+import { getAuctionUsersKey, getFrozenBalanceKey, getRoundBidsKey } from "@/common/redis/auctionKeys";
+import { getAuctionState, isRoundActive } from "@/common/redis/auctionState";
 import { getAuctionWebSocketServer } from "@/websocket/auctionWebSocket";
 import type { BidPlacedEvent } from "@/websocket/types";
+import { auctionService } from "../auction/auctionService";
+import { walletService } from "../wallet/walletService";
 import type { Bid } from "./bidModel";
-import { metricsService } from "@/common/metrics/metricsService";
 
 const logger = pino({ name: "bidService" });
 
@@ -25,11 +21,7 @@ export class BidService {
 	 * Place a bid for a user in an auction
 	 * Atomic operation: SADD for lock, ZADD for bid, freeze balance
 	 */
-	async placeBid(
-		auctionId: string,
-		userId: number,
-		amount: number,
-	): Promise<ServiceResponse<Bid>> {
+	async placeBid(auctionId: string, userId: number, amount: number): Promise<ServiceResponse<Bid>> {
 		const redis = getRedisClient();
 		const startTime = Date.now();
 
@@ -37,21 +29,13 @@ export class BidService {
 			// 1. Validate auction exists and is active
 			const auctionResponse = await auctionService.getAuctionById(auctionId);
 			if (!auctionResponse.success || !auctionResponse.responseObject) {
-				return ServiceResponse.failure(
-					"Auction not found",
-					null as unknown as Bid,
-					StatusCodes.NOT_FOUND,
-				);
+				return ServiceResponse.failure("Auction not found", null as unknown as Bid, StatusCodes.NOT_FOUND);
 			}
 
 			const auction = auctionResponse.responseObject;
 
 			if (auction.status !== "active") {
-				return ServiceResponse.failure(
-					"Auction is not active",
-					null as unknown as Bid,
-					StatusCodes.BAD_REQUEST,
-				);
+				return ServiceResponse.failure("Auction is not active", null as unknown as Bid, StatusCodes.BAD_REQUEST);
 			}
 
 			// 2. Check if round is active (not settling)
@@ -86,7 +70,7 @@ export class BidService {
 					"Bid rejected: anti-sniping period active",
 				);
 				return ServiceResponse.failure(
-					`Bids are not accepted in the last ${ANTI_SNIPING_SECONDS} seconds of the round. ${secondsRemaining > 0 ? `Round ends in ${secondsRemaining} second${secondsRemaining !== 1 ? 's' : ''}.` : 'Round has ended.'}`,
+					`Bids are not accepted in the last ${ANTI_SNIPING_SECONDS} seconds of the round. ${secondsRemaining > 0 ? `Round ends in ${secondsRemaining} second${secondsRemaining !== 1 ? "s" : ""}.` : "Round has ended."}`,
 					null as unknown as Bid,
 					StatusCodes.BAD_REQUEST,
 				);
@@ -96,12 +80,9 @@ export class BidService {
 			// SADD returns 1 if the member was added (user hasn't bid yet), 0 if already exists
 			const usersKey = getAuctionUsersKey(auctionId);
 			const added = await redis.sadd(usersKey, userId.toString());
-			
+
 			if (added === 0) {
-				logger.warn(
-					{ userId, auctionId },
-					"Bid rejected: user has already placed a bid in this auction",
-				);
+				logger.warn({ userId, auctionId }, "Bid rejected: user has already placed a bid in this auction");
 				return ServiceResponse.failure(
 					"User has already placed a bid in this auction",
 					null as unknown as Bid,
@@ -158,14 +139,14 @@ export class BidService {
 			const secondsRemaining = Math.ceil(timeRemaining / 1000);
 
 			logger.info(
-				{ 
-					userId, 
-					auctionId, 
-					roundNumber, 
+				{
+					userId,
+					auctionId,
+					roundNumber,
 					amount,
 					timeRemaining,
 					secondsRemaining,
-					antiSnipingActive: timeRemaining < antiSnipingMs
+					antiSnipingActive: timeRemaining < antiSnipingMs,
 				},
 				"Bid placed successfully",
 			);
@@ -214,11 +195,7 @@ export class BidService {
 				logger.error({ rollbackError, userId, auctionId }, "Error during bid rollback");
 			}
 
-			return ServiceResponse.failure(
-				errorMessage,
-				null as unknown as Bid,
-				StatusCodes.INTERNAL_SERVER_ERROR,
-			);
+			return ServiceResponse.failure(errorMessage, null as unknown as Bid, StatusCodes.INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -284,7 +261,7 @@ export class BidService {
 
 		for (let i = 0; i < bids.length; i += 2) {
 			const member = bids[i] as string;
-			const score = parseFloat(bids[i + 1] as string);
+			const _score = parseFloat(bids[i + 1] as string);
 
 			const [userIdStr, timestampStr, amountStr] = member.split(":");
 			const userId = parseInt(userIdStr || "0", 10);
@@ -320,5 +297,3 @@ export class BidService {
 }
 
 export const bidService = new BidService();
-
-

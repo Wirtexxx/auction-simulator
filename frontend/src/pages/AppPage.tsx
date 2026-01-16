@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { getUser, clearAuth, isAuthenticated, type StoredUser } from '../lib/authStorage';
 
 export function AppPage() {
-  const [user, setUser] = useState<StoredUser | null>(null);
+  const [user, setUser] = useState<StoredUser | null>(() => {
+    if (!isAuthenticated()) {
+      return null;
+    }
+    return getUser();
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -14,7 +19,8 @@ export function AppPage() {
 
     const userData = getUser();
     if (userData) {
-      setUser(userData);
+      // Use setTimeout to avoid synchronous setState in effect
+      setTimeout(() => setUser(userData), 0);
     } else {
       navigate('/auth');
     }

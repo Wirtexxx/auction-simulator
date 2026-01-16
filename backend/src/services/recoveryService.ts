@@ -1,11 +1,9 @@
 import { pino } from "pino";
 import { auctionService } from "@/api/auction/auctionService";
 import { roundService } from "@/api/round/roundService";
-import { initializeAuctionState, addRoundTimer } from "@/common/redis/auctionState";
-import { getRoundBidsKey, getAuctionUsersKey, getFrozenBalanceKey } from "@/common/redis/auctionKeys";
 import { getRedisClient } from "@/common/db/redis";
-import { bidService } from "@/api/bid/bidService";
-import { walletService } from "@/api/wallet/walletService";
+import { getAuctionUsersKey, getFrozenBalanceKey, getRoundBidsKey } from "@/common/redis/auctionKeys";
+import { initializeAuctionState } from "@/common/redis/auctionState";
 
 const logger = pino({ name: "recoveryService" });
 
@@ -44,7 +42,7 @@ export class RecoveryService {
 	 * Recover a single auction
 	 */
 	private async recoverAuction(auctionId: string): Promise<void> {
-		const redis = getRedisClient();
+		const _redis = getRedisClient();
 
 		try {
 			// Get auction from MongoDB
@@ -81,10 +79,7 @@ export class RecoveryService {
 				// Rebuild frozen balances from bids in Redis (if they exist)
 				await this.rebuildFrozenBalances(auctionId, roundNumber);
 
-				logger.info(
-					{ auctionId, roundNumber, roundEndTs, now },
-					"Auction state recovered",
-				);
+				logger.info({ auctionId, roundNumber, roundEndTs, now }, "Auction state recovered");
 			} else {
 				// Round has expired, but state might not be settled
 				// Check if round is already settled
@@ -96,17 +91,11 @@ export class RecoveryService {
 
 				if (!isSettled) {
 					// Round expired but not settled - trigger settlement
-					logger.info(
-						{ auctionId, roundNumber },
-						"Round expired but not settled, triggering settlement",
-					);
+					logger.info({ auctionId, roundNumber }, "Round expired but not settled, triggering settlement");
 					const { settlementService } = await import("@/services/settlementService");
 					// Trigger settlement asynchronously
 					settlementService.settleRound(auctionId, roundNumber).catch((error) => {
-						logger.error(
-							{ error, auctionId, roundNumber },
-							"Error settling expired round during recovery",
-						);
+						logger.error({ error, auctionId, roundNumber }, "Error settling expired round during recovery");
 					});
 				} else {
 					logger.info(
@@ -136,7 +125,7 @@ export class RecoveryService {
 		try {
 			// Get all users who have placed bids in this auction
 			const userIds = await redis.smembers(usersKey);
-			
+
 			if (userIds.length === 0) {
 				logger.info({ auctionId, roundNumber }, "No users found in auction users set, skipping frozen balance rebuild");
 				return;
@@ -144,10 +133,10 @@ export class RecoveryService {
 
 			// Get all bids from current round
 			const bids = await redis.zrange(bidsKey, 0, -1, "WITHSCORES");
-			
+
 			// Map to track which users have bids in current round
 			const usersWithBids = new Set<number>();
-			
+
 			// Process bids from current round
 			for (let i = 0; i < bids.length; i += 2) {
 				const member = bids[i] as string;
@@ -171,19 +160,19 @@ export class RecoveryService {
 				const userId = parseInt(userIdStr, 10);
 				if (!usersWithBids.has(userId)) {
 					missingUsers.push(userId);
-					
+
 					// Try to find bid in previous rounds (starting from current round - 1, going backwards)
 					let foundBid = false;
 					for (let prevRound = roundNumber - 1; prevRound >= 1 && !foundBid; prevRound--) {
 						const prevBidsKey = getRoundBidsKey(auctionId, prevRound);
 						const prevBids = await redis.zrange(prevBidsKey, 0, -1, "WITHSCORES");
-						
+
 						// Find user's bid in previous round
 						for (let j = 0; j < prevBids.length; j += 2) {
 							const member = prevBids[j] as string;
 							const [bidUserIdStr, , amountStr] = member.split(":");
 							const bidUserId = parseInt(bidUserIdStr || "0", 10);
-							
+
 							if (bidUserId === userId) {
 								const amount = parseFloat(amountStr || "0");
 								if (amount > 0) {
@@ -196,33 +185,30 @@ export class RecoveryService {
 									foundBid = true;
 									logger.info(
 										{ auctionId, userId, fromRound: prevRound, toRound: roundNumber, amount },
-										"Recovered bid from previous round"
+										"Recovered bid from previous round",
 									);
 									break;
 								}
 							}
 						}
 					}
-					
+
 					if (!foundBid) {
-						logger.warn(
-							{ auctionId, userId, roundNumber },
-							"User in auction users set but no bid found in any round"
-						);
+						logger.warn({ auctionId, userId, roundNumber }, "User in auction users set but no bid found in any round");
 					}
 				}
 			}
 
 			const totalBids = await redis.zcard(bidsKey);
 			logger.info(
-				{ 
-					auctionId, 
-					roundNumber, 
+				{
+					auctionId,
+					roundNumber,
 					usersInSet: userIds.length,
 					bidsInRound: totalBids,
-					missingUsersRecovered: missingUsers.length - (userIds.length - usersWithBids.size)
-				}, 
-				"Frozen balances rebuilt"
+					missingUsersRecovered: missingUsers.length - (userIds.length - usersWithBids.size),
+				},
+				"Frozen balances rebuilt",
 			);
 		} catch (error) {
 			logger.error({ error, auctionId, roundNumber }, "Error rebuilding frozen balances");
@@ -231,5 +217,3 @@ export class RecoveryService {
 }
 
 export const recoveryService = new RecoveryService();
-
-

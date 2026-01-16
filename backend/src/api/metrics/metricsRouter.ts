@@ -1,4 +1,4 @@
-import { Router, type Router as ExpressRouter } from "express";
+import { type Router as ExpressRouter, Router } from "express";
 import { getMetrics } from "./metricsController";
 
 const metricsRouter: ExpressRouter = Router();

@@ -31,13 +31,7 @@ walletRegistry.registerPath({
 	responses: createApiResponse(WalletSchema, "Wallet created successfully", 201),
 });
 
-walletRouter.post(
-	"/",
-	authenticate,
-	requireAdmin,
-	validateRequest(CreateWalletSchema),
-	walletController.createWallet,
-);
+walletRouter.post("/", authenticate, requireAdmin, validateRequest(CreateWalletSchema), walletController.createWallet);
 
 walletRegistry.registerPath({
 	method: "get",
@@ -76,5 +70,3 @@ walletRouter.put(
 	validateRequest(UpdateWalletBalanceSchema),
 	walletController.updateWalletBalance,
 );
-
-

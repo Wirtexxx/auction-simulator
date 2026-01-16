@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getAuctions, startAuction, finishAuction, type Auction } from "../lib/api/auction";
 import { getCollectionById } from "../lib/api/collection";
 import type { Collection } from "../lib/api/types";
@@ -33,17 +33,17 @@ export function AdminAuctionsPage() {
         fetchAuctions();
     }, []);
 
-    useEffect(() => {
-        filterAuctions();
-    }, [auctions, statusFilter]);
-
-    const filterAuctions = () => {
+    const filterAuctions = useCallback(() => {
         if (statusFilter === "all") {
             setFilteredAuctions(auctions);
         } else {
             setFilteredAuctions(auctions.filter((auction) => auction.status === statusFilter));
         }
-    };
+    }, [auctions, statusFilter]);
+
+    useEffect(() => {
+        filterAuctions();
+    }, [filterAuctions]);
 
     const fetchAuctions = async () => {
         try {

@@ -8,7 +8,13 @@ import { authenticate } from "@/common/middleware/authenticate";
 import { requireAdmin } from "@/common/middleware/requireAdmin";
 import { validateRequest } from "@/common/utils/httpHandlers";
 import { auctionController } from "./auctionController";
-import { CreateAuctionSchema, GetAuctionSchema, GetAuctionsSchema, StartAuctionSchema, FinishAuctionSchema } from "./auctionModel";
+import {
+	CreateAuctionSchema,
+	FinishAuctionSchema,
+	GetAuctionSchema,
+	GetAuctionsSchema,
+	StartAuctionSchema,
+} from "./auctionModel";
 
 export const auctionRegistry = new OpenAPIRegistry();
 export const auctionRouter: Router = express.Router();

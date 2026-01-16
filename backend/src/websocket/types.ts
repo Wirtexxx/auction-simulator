@@ -89,5 +89,3 @@ export type WebSocketEvent =
 	| RoundSettledEvent
 	| AuctionFinishedEvent
 	| ErrorEvent;
-
-

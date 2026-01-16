@@ -1,32 +1,29 @@
 /**
  * Manual Auction Test Script
- * 
+ *
  * This script tests the full auction cycle manually.
  * Run with: pnpm tsx src/__tests__/manualAuctionTest.ts
- * 
+ *
  * Prerequisites:
  * - MongoDB running
  * - Redis running
  * - Environment variables configured
  */
 
-import { connectMongoDB, disconnectMongoDB } from "@/common/db/mongodb";
-import { connectRedis, disconnectRedis } from "@/common/db/redis";
 import { auctionService } from "@/api/auction/auctionService";
 import { bidService } from "@/api/bid/bidService";
-import { walletService } from "@/api/wallet/walletService";
 import { collectionService } from "@/api/collection/collectionService";
-import { userService } from "@/api/user/userService";
 import { roundService } from "@/api/round/roundService";
+import { walletService } from "@/api/wallet/walletService";
+import { connectMongoDB, disconnectMongoDB } from "@/common/db/mongodb";
+import { connectRedis, disconnectRedis, getRedisClient } from "@/common/db/redis";
+import { getRoundBidsKey } from "@/common/redis/auctionKeys";
 import { getAuctionState } from "@/common/redis/auctionState";
-import { getRoundBidsKey, getAuctionUsersKey } from "@/common/redis/auctionKeys";
-import { getRedisClient } from "@/common/db/redis";
-import { settlementService } from "@/services/settlementService";
+import Auction from "@/models/Auction";
 import Collection from "@/models/Collection";
+import Round from "@/models/Round";
 import User from "@/models/User";
 import Wallet from "@/models/Wallet";
-import Auction from "@/models/Auction";
-import Round from "@/models/Round";
 
 const colors = {
 	reset: "\x1b[0m",
@@ -58,9 +55,9 @@ function logInfo(message: string) {
 }
 
 async function testFullAuctionCycle() {
-	log("\n" + "=".repeat(60), "yellow");
+	log(`\n${"=".repeat(60)}`, "yellow");
 	log("Auction System - Full Cycle Manual Test", "yellow");
-	log("=".repeat(60) + "\n", "yellow");
+	log(`${"=".repeat(60)}\n`, "yellow");
 
 	try {
 		// Connect to databases
@@ -220,9 +217,7 @@ async function testFullAuctionCycle() {
 						`Winner ${i + 1} (User ${userIds[i]}): balance = ${wallet.responseObject.balance} (deducted ${bidAmounts[i]})`,
 					);
 				} else {
-					logError(
-						`Winner ${i + 1}: expected ${expected}, got ${wallet.responseObject.balance}`,
-					);
+					logError(`Winner ${i + 1}: expected ${expected}, got ${wallet.responseObject.balance}`);
 				}
 			}
 		}
@@ -236,9 +231,7 @@ async function testFullAuctionCycle() {
 						`Loser ${i + 1} (User ${userIds[i + 3]}): balance = ${wallet.responseObject.balance} (frozen returned)`,
 					);
 				} else {
-					logError(
-						`Loser ${i + 1}: expected 1000, got ${wallet.responseObject.balance}`,
-					);
+					logError(`Loser ${i + 1}: expected 1000, got ${wallet.responseObject.balance}`);
 				}
 			}
 		}
@@ -290,9 +283,9 @@ async function testFullAuctionCycle() {
 		await Round.deleteMany({ auction_id: auctionId });
 		logSuccess("Test data cleaned up");
 
-		log("\n" + "=".repeat(60), "green");
+		log(`\n${"=".repeat(60)}`, "green");
 		log("✓ All tests passed successfully!", "green");
-		log("=".repeat(60) + "\n", "green");
+		log(`${"=".repeat(60)}\n`, "green");
 	} catch (error) {
 		logError(`Test failed: ${error instanceof Error ? error.message : String(error)}`);
 		if (error instanceof Error && error.stack) {

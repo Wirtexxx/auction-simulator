@@ -21,4 +21,3 @@ export const ownershipController = {
 		return res.status(serviceResponse.statusCode).send(serviceResponse);
 	},
 };
-

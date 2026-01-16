@@ -1,5 +1,5 @@
-import type { CreateUserData } from "./userRepository";
 import type { InitData } from "@tma.js/init-data-node";
+import type { CreateUserData } from "./userRepository";
 
 export function createUserDataFromTelegram(telegramUser: NonNullable<InitData["user"]>): CreateUserData {
 	return {
@@ -13,4 +13,3 @@ export function createUserDataFromTelegram(telegramUser: NonNullable<InitData["u
 		role: "user",
 	};
 }
-

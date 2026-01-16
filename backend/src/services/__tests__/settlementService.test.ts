@@ -1,21 +1,21 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { connectMongoDB, disconnectMongoDB } from "@/common/db/mongodb";
-import { connectRedis, disconnectRedis, getRedisClient } from "@/common/db/redis";
-import { settlementService } from "../settlementService";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { auctionService } from "@/api/auction/auctionService";
 import { bidService } from "@/api/bid/bidService";
-import { walletService } from "@/api/wallet/walletService";
 import { collectionService } from "@/api/collection/collectionService";
+import { walletService } from "@/api/wallet/walletService";
+import { connectMongoDB, disconnectMongoDB } from "@/common/db/mongodb";
+import { connectRedis, disconnectRedis, getRedisClient } from "@/common/db/redis";
 import { getRoundBidsKey, getRoundSettledKey } from "@/common/redis/auctionKeys";
+import Auction from "@/models/Auction";
+import Collection from "@/models/Collection";
+import Round from "@/models/Round";
 import User from "@/models/User";
 import Wallet from "@/models/Wallet";
-import Collection from "@/models/Collection";
-import Auction from "@/models/Auction";
-import Round from "@/models/Round";
+import { settlementService } from "../settlementService";
 
 describe("SettlementService Tests", () => {
 	let testCollectionId: string;
-	let testUserIds: number[] = [];
+	const testUserIds: number[] = [];
 	let testAuctionId: string;
 	let redis: ReturnType<typeof getRedisClient>;
 
@@ -154,9 +154,8 @@ describe("SettlementService Tests", () => {
 
 		// Get initial balance
 		const initialBalance = await walletService.getWalletById(testUserIds[0]);
-		const initialBalance1 = initialBalance.success && initialBalance.responseObject
-			? initialBalance.responseObject.balance
-			: 0;
+		const initialBalance1 =
+			initialBalance.success && initialBalance.responseObject ? initialBalance.responseObject.balance : 0;
 
 		// Settle first time
 		await settlementService.settleRound(auctionId, 1);
@@ -166,9 +165,7 @@ describe("SettlementService Tests", () => {
 
 		// Verify balance didn't change twice
 		const finalBalance = await walletService.getWalletById(testUserIds[0]);
-		const finalBalance1 = finalBalance.success && finalBalance.responseObject
-			? finalBalance.responseObject.balance
-			: 0;
+		const finalBalance1 = finalBalance.success && finalBalance.responseObject ? finalBalance.responseObject.balance : 0;
 
 		// Balance should be deducted only once
 		expect(finalBalance1).toBe(initialBalance1 - 100);

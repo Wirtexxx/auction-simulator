@@ -2,9 +2,9 @@ import { connectMongoDB, disconnectMongoDB } from "@/common/db/mongodb";
 import { connectRedis, disconnectRedis } from "@/common/db/redis";
 import { env } from "@/common/utils/envConfig";
 import { app, logger } from "@/server";
-import { initializeAuctionWebSocket } from "@/websocket/auctionWebSocket";
-import { getRoundTimerService } from "@/services/roundTimerService";
 import { recoveryService } from "@/services/recoveryService";
+import { getRoundTimerService } from "@/services/roundTimerService";
+import { initializeAuctionWebSocket } from "@/websocket/auctionWebSocket";
 
 async function startServer() {
 	try {
@@ -30,11 +30,11 @@ async function startServer() {
 
 		const onCloseSignal = async () => {
 			logger.info("sigint received, shutting down");
-			
+
 			// Stop round timer service
 			const timerService = getRoundTimerService();
 			timerService.stop();
-			
+
 			server.close(async () => {
 				logger.info("server closed");
 				try {

@@ -1,19 +1,22 @@
 import { StatusCodes } from "http-status-codes";
 import { pino } from "pino";
-
+import { getRedisClient } from "@/common/db/redis";
+import { metricsService } from "@/common/metrics/metricsService";
 import { ServiceResponse } from "@/common/models/serviceResponse";
+import { getAuctionKeysPattern, getRoundBidsKey } from "@/common/redis/auctionKeys";
+import {
+	initializeAuctionState,
+	initializeAuctionStateWithTime,
+	updateAuctionState,
+} from "@/common/redis/auctionState";
 import Collection from "@/models/Collection";
 import Ownership from "@/models/Ownership";
-import type { Auction } from "./auctionModel";
-import { AuctionRepository, type CreateAuctionData, type GetAuctionsFilters } from "./auctionRepository";
-import { roundService } from "../round/roundService";
-import { initializeAuctionState, initializeAuctionStateWithTime, updateAuctionState, addRoundTimer } from "@/common/redis/auctionState";
-import { getAuctionKeysPattern, getRoundBidsKey } from "@/common/redis/auctionKeys";
-import { getRedisClient } from "@/common/db/redis";
-import { walletService } from "../wallet/walletService";
 import { getAuctionWebSocketServer } from "@/websocket/auctionWebSocket";
 import type { AuctionFinishedEvent, RoundStartedEvent } from "@/websocket/types";
-import { metricsService } from "@/common/metrics/metricsService";
+import { roundService } from "../round/roundService";
+import { walletService } from "../wallet/walletService";
+import type { Auction } from "./auctionModel";
+import { AuctionRepository, type CreateAuctionData, type GetAuctionsFilters } from "./auctionRepository";
 
 const logger = pino({ name: "auctionService" });
 
@@ -24,7 +27,11 @@ export class AuctionService {
 		this.auctionRepository = new AuctionRepository();
 	}
 
-	async createAuction(data: { collection_id: string; round_duration: number; gifts_per_round: number }): Promise<ServiceResponse<Auction>> {
+	async createAuction(data: {
+		collection_id: string;
+		round_duration: number;
+		gifts_per_round: number;
+	}): Promise<ServiceResponse<Auction>> {
 		try {
 			const collection = await Collection.findById(data.collection_id);
 			if (!collection) {
@@ -33,13 +40,21 @@ export class AuctionService {
 
 			// Check if collection is already sold
 			if (collection.is_sold) {
-				return ServiceResponse.failure("Collection is already sold and cannot be used for a new auction", null as unknown as Auction, StatusCodes.BAD_REQUEST);
+				return ServiceResponse.failure(
+					"Collection is already sold and cannot be used for a new auction",
+					null as unknown as Auction,
+					StatusCodes.BAD_REQUEST,
+				);
 			}
 
 			// Check if there's already an auction for this collection (active or finished)
 			const existingAuctions = await this.auctionRepository.findAll({ collection_id: data.collection_id });
 			if (existingAuctions.length > 0) {
-				return ServiceResponse.failure("An auction for this collection already exists. Collections can only be used once.", null as unknown as Auction, StatusCodes.BAD_REQUEST);
+				return ServiceResponse.failure(
+					"An auction for this collection already exists. Collections can only be used once.",
+					null as unknown as Auction,
+					StatusCodes.BAD_REQUEST,
+				);
 			}
 
 			// Finish all active auctions (max 1 active auction allowed)
@@ -47,7 +62,7 @@ export class AuctionService {
 			if (activeAuctions.length > 0) {
 				// Finish all active auctions
 				await this.auctionRepository.finishAllActiveAuctions();
-				
+
 				// Finish all active rounds for these auctions
 				for (const activeAuction of activeAuctions) {
 					const currentRound = await roundService.getCurrentRound(activeAuction._id);
@@ -124,7 +139,10 @@ export class AuctionService {
 
 			// Create first round in MongoDB FIRST (before initializing Redis)
 			// This ensures we have a round before setting up timers
-			logger.info({ auctionId, collectionId: auction.collection_id, roundNumber: 1, giftsPerRound: auction.gifts_per_round }, "Creating first round in MongoDB");
+			logger.info(
+				{ auctionId, collectionId: auction.collection_id, roundNumber: 1, giftsPerRound: auction.gifts_per_round },
+				"Creating first round in MongoDB",
+			);
 			const roundResponse = await roundService.createRound(
 				auctionId,
 				auction.collection_id,
@@ -143,12 +161,15 @@ export class AuctionService {
 			}
 
 			const createdRound = roundResponse.responseObject;
-			logger.info({ 
-				auctionId, 
-				roundId: createdRound._id, 
-				roundNumber: createdRound.round_number,
-				giftsCount: createdRound.gift_ids.length
-			}, "First round created successfully, now initializing Redis state");
+			logger.info(
+				{
+					auctionId,
+					roundId: createdRound._id,
+					roundNumber: createdRound.round_number,
+					giftsCount: createdRound.gift_ids.length,
+				},
+				"First round created successfully, now initializing Redis state",
+			);
 
 			// Verify round_number is correct
 			if (createdRound.round_number !== 1) {
@@ -164,15 +185,16 @@ export class AuctionService {
 			await initializeAuctionState(auctionId, 1, auction.round_duration);
 
 			// Verify Redis state was created
-			const state = await import("@/common/redis/auctionState").then((m) =>
-				m.getAuctionState(auctionId),
-			);
+			const state = await import("@/common/redis/auctionState").then((m) => m.getAuctionState(auctionId));
 			if (!state) {
 				logger.error({ auctionId }, "Redis state not initialized after createRound");
 				throw new Error("Failed to initialize Redis state");
 			}
 
-			logger.info({ auctionId, roundNumber: state.round, roundEndTs: state.round_end_ts }, "Redis state initialized successfully");
+			logger.info(
+				{ auctionId, roundNumber: state.round, roundEndTs: state.round_end_ts },
+				"Redis state initialized successfully",
+			);
 
 			// Broadcast round_started event
 			const wsServer = getAuctionWebSocketServer();
@@ -191,7 +213,10 @@ export class AuctionService {
 
 			logger.info({ auctionId, roundId: createdRound._id }, "Auction started successfully");
 		} catch (error) {
-			logger.error({ error, auctionId, stack: error instanceof Error ? error.stack : undefined }, "Error starting auction");
+			logger.error(
+				{ error, auctionId, stack: error instanceof Error ? error.stack : undefined },
+				"Error starting auction",
+			);
 			throw error;
 		}
 	}
@@ -275,7 +300,10 @@ export class AuctionService {
 			// Get collection
 			const collection = await Collection.findById(auction.collection_id);
 			if (!collection) {
-				logger.warn({ auctionId, collectionId: auction.collection_id }, "Collection not found in shouldFinish, returning true");
+				logger.warn(
+					{ auctionId, collectionId: auction.collection_id },
+					"Collection not found in shouldFinish, returning true",
+				);
 				return true;
 			}
 
@@ -312,7 +340,7 @@ export class AuctionService {
 	async nextRound(auctionId: string): Promise<void> {
 		try {
 			logger.info({ auctionId }, "Starting nextRound");
-			
+
 			// Get auction to check current round number vs total_rounds
 			const auction = await this.auctionRepository.findById(auctionId);
 			if (!auction) {
@@ -328,7 +356,7 @@ export class AuctionService {
 				{ auctionId, currentRoundNumber, totalRounds, isOverRound },
 				"Checking if auction should continue (overrounds logic: auction continues until all gifts are sold)",
 			);
-			
+
 			// Check if auction should finish (based on unsold gifts, NOT total_rounds)
 			// This allows overrounds - auction continues beyond total_rounds until all gifts are sold
 			const shouldFinish = await this.shouldFinish(auctionId);
@@ -345,7 +373,10 @@ export class AuctionService {
 				);
 			}
 
-			logger.info({ auctionId, currentRoundNumber, totalRounds, isOverRound }, "Auction should continue, creating next round");
+			logger.info(
+				{ auctionId, currentRoundNumber, totalRounds, isOverRound },
+				"Auction should continue, creating next round",
+			);
 
 			// Validate current_round_number
 			if (!currentRoundNumber || currentRoundNumber < 1) {
@@ -356,27 +387,35 @@ export class AuctionService {
 			// Get current round by round number (not by status, as it may be finished)
 			// Use the round number from auction, which is the round that just finished
 			logger.info({ auctionId, currentRoundNumber }, "Getting current round by number");
-			
+
 			const currentRoundResponse = await roundService.getRoundByAuctionAndNumber(auctionId, currentRoundNumber);
 			if (!currentRoundResponse.success || !currentRoundResponse.responseObject) {
-				logger.error({ auctionId, currentRoundNumber, error: currentRoundResponse.message }, "Current round not found by number");
+				logger.error(
+					{ auctionId, currentRoundNumber, error: currentRoundResponse.message },
+					"Current round not found by number",
+				);
 				throw new Error(`Current round ${currentRoundNumber} not found for auction ${auctionId}`);
 			}
 
 			const currentRound = currentRoundResponse.responseObject;
-			
+
 			// Validate that the found round has the correct round_number
 			if (currentRound.round_number !== currentRoundNumber) {
 				logger.error(
 					{ auctionId, expectedRoundNumber: currentRoundNumber, actualRoundNumber: currentRound.round_number },
-					"Round number mismatch in found round"
+					"Round number mismatch in found round",
 				);
 				throw new Error(`Round number mismatch: expected ${currentRoundNumber}, got ${currentRound.round_number}`);
 			}
 			const unsoldGifts = await roundService.getUnsoldGiftsFromRound(currentRound._id);
 
 			logger.info(
-				{ auctionId, currentRoundNumber: auction.current_round_number, unsoldGiftsCount: unsoldGifts.length, giftsPerRound: auction.gifts_per_round },
+				{
+					auctionId,
+					currentRoundNumber: auction.current_round_number,
+					unsoldGiftsCount: unsoldGifts.length,
+					giftsPerRound: auction.gifts_per_round,
+				},
 				"Moving to next round with unsold gifts",
 			);
 
@@ -413,12 +452,12 @@ export class AuctionService {
 			}
 
 			const createdRound = roundResponse.responseObject;
-			
+
 			// Validate that the created round has the correct round_number
 			if (createdRound.round_number !== nextRoundNumber) {
 				logger.error(
 					{ auctionId, expectedRoundNumber: nextRoundNumber, actualRoundNumber: createdRound.round_number },
-					"Created round has wrong round_number"
+					"Created round has wrong round_number",
 				);
 				throw new Error(`Round number mismatch: expected ${nextRoundNumber}, got ${createdRound.round_number}`);
 			}
@@ -427,33 +466,36 @@ export class AuctionService {
 			if (!createdRound.gift_ids || createdRound.gift_ids.length === 0) {
 				logger.error(
 					{ auctionId, roundNumber: nextRoundNumber, roundId: createdRound._id },
-					"Created round has no gifts"
+					"Created round has no gifts",
 				);
 				throw new Error(`Round ${nextRoundNumber} has no gifts`);
 			}
 
-			logger.info({ 
-				auctionId, 
-				nextRoundNumber, 
-				roundId: createdRound._id,
-				giftsCount: createdRound.gift_ids.length
-			}, "Next round created and validated, initializing Redis state");
+			logger.info(
+				{
+					auctionId,
+					nextRoundNumber,
+					roundId: createdRound._id,
+					giftsCount: createdRound.gift_ids.length,
+				},
+				"Next round created and validated, initializing Redis state",
+			);
 
 			// Initialize Redis state for new round with synchronized time
 			// Use the same timestamp as MongoDB to ensure consistency
 			const roundEndTs = nowMs + auction.round_duration * 1000;
 			await initializeAuctionStateWithTime(auctionId, nextRoundNumber, roundEndTs);
-			
+
 			// Validate that Redis state was initialized correctly
-			const redisState = await import("@/common/redis/auctionState").then((m) =>
-				m.getAuctionState(auctionId),
-			);
+			const redisState = await import("@/common/redis/auctionState").then((m) => m.getAuctionState(auctionId));
 			if (!redisState || redisState.round !== nextRoundNumber) {
 				logger.error(
 					{ auctionId, expectedRound: nextRoundNumber, actualRound: redisState?.round },
-					"Redis state not initialized correctly"
+					"Redis state not initialized correctly",
 				);
-				throw new Error(`Redis state initialization failed: expected round ${nextRoundNumber}, got ${redisState?.round}`);
+				throw new Error(
+					`Redis state initialization failed: expected round ${nextRoundNumber}, got ${redisState?.round}`,
+				);
 			}
 
 			// Copy bids from previous round to new round
@@ -461,11 +503,11 @@ export class AuctionService {
 			const redis = getRedisClient();
 			const previousBidsKey = getRoundBidsKey(auctionId, currentRoundNumber);
 			const newBidsKey = getRoundBidsKey(auctionId, nextRoundNumber);
-			
+
 			try {
 				// Get all bids from previous round
 				const previousBids = await redis.zrange(previousBidsKey, 0, -1, "WITHSCORES");
-				
+
 				if (previousBids.length > 0) {
 					// Copy bids to new round using ZADD
 					// previousBids is an array: [member1, score1, member2, score2, ...]
@@ -474,49 +516,50 @@ export class AuctionService {
 						const score = parseFloat(previousBids[i + 1] as string);
 						await redis.zadd(newBidsKey, score, member);
 					}
-					
+
 					const bidsCount = previousBids.length / 2;
 					logger.info(
-						{ 
-							auctionId, 
-							fromRound: currentRoundNumber, 
+						{
+							auctionId,
+							fromRound: currentRoundNumber,
 							toRound: nextRoundNumber,
-							bidsCount 
+							bidsCount,
 						},
-						"Copied bids from previous round to new round"
+						"Copied bids from previous round to new round",
 					);
 				} else {
 					logger.info(
-						{ 
-							auctionId, 
-							fromRound: currentRoundNumber, 
-							toRound: nextRoundNumber 
+						{
+							auctionId,
+							fromRound: currentRoundNumber,
+							toRound: nextRoundNumber,
 						},
-						"No bids to copy from previous round"
+						"No bids to copy from previous round",
 					);
 				}
 			} catch (error) {
 				logger.error(
-					{ 
-						error, 
-						auctionId, 
-						fromRound: currentRoundNumber, 
-						toRound: nextRoundNumber 
+					{
+						error,
+						auctionId,
+						fromRound: currentRoundNumber,
+						toRound: nextRoundNumber,
 					},
-					"Error copying bids from previous round"
+					"Error copying bids from previous round",
 				);
 				// Don't throw - this is not critical, auction can continue without copying bids
 				// But log the error for debugging
 			}
 
-			logger.info({ auctionId, nextRoundNumber, roundEndTs }, "Redis state initialized, broadcasting round_started event");
+			logger.info(
+				{ auctionId, nextRoundNumber, roundEndTs },
+				"Redis state initialized, broadcasting round_started event",
+			);
 
 			// Broadcast round_started event
 			const wsServer = getAuctionWebSocketServer();
 			if (wsServer) {
-				const state = await import("@/common/redis/auctionState").then((m) =>
-					m.getAuctionState(auctionId),
-				);
+				const state = await import("@/common/redis/auctionState").then((m) => m.getAuctionState(auctionId));
 				if (state) {
 					const event: RoundStartedEvent = {
 						type: "round_started",
@@ -537,7 +580,10 @@ export class AuctionService {
 
 			logger.info({ auctionId, roundNumber: nextRoundNumber }, "Successfully moved to next round");
 		} catch (error) {
-			logger.error({ error, auctionId, stack: error instanceof Error ? error.stack : undefined }, "Error moving to next round");
+			logger.error(
+				{ error, auctionId, stack: error instanceof Error ? error.stack : undefined },
+				"Error moving to next round",
+			);
 			// Re-throw to let caller know about the error
 			throw error;
 		}
@@ -545,5 +591,3 @@ export class AuctionService {
 }
 
 export const auctionService = new AuctionService();
-
-

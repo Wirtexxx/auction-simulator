@@ -279,7 +279,7 @@ export function useAuctionWebSocket(options: UseAuctionWebSocketOptions) {
                                 data: { auctionId: currentAuctionIdRef.current },
                             })
                         );
-                    } catch (err) {
+                    } catch {
                         // Ignore errors when closing
                     }
                 }

@@ -13,20 +13,12 @@ export interface AuthenticatedRequest extends Request {
 	};
 }
 
-export const authenticate = async (
-	req: AuthenticatedRequest,
-	res: Response,
-	next: NextFunction,
-): Promise<void> => {
+export const authenticate = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
 	try {
 		const authHeader = req.headers.authorization;
 
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
-			const serviceResponse = ServiceResponse.failure(
-				"Authorization token required",
-				null,
-				StatusCodes.UNAUTHORIZED,
-			);
+			const serviceResponse = ServiceResponse.failure("Authorization token required", null, StatusCodes.UNAUTHORIZED);
 			res.status(serviceResponse.statusCode).send(serviceResponse);
 			return;
 		}
@@ -39,11 +31,7 @@ export const authenticate = async (
 			const user = await User.findById(decoded.userId);
 
 			if (!user) {
-				const serviceResponse = ServiceResponse.failure(
-					"User not found",
-					null,
-					StatusCodes.UNAUTHORIZED,
-				);
+				const serviceResponse = ServiceResponse.failure("User not found", null, StatusCodes.UNAUTHORIZED);
 				res.status(serviceResponse.statusCode).send(serviceResponse);
 				return;
 			}
@@ -54,22 +42,12 @@ export const authenticate = async (
 			};
 
 			next();
-		} catch (error) {
-			const serviceResponse = ServiceResponse.failure(
-				"Invalid or expired token",
-				null,
-				StatusCodes.UNAUTHORIZED,
-			);
+		} catch (_error) {
+			const serviceResponse = ServiceResponse.failure("Invalid or expired token", null, StatusCodes.UNAUTHORIZED);
 			res.status(serviceResponse.statusCode).send(serviceResponse);
 		}
-	} catch (error) {
-		const serviceResponse = ServiceResponse.failure(
-			"Authentication failed",
-			null,
-			StatusCodes.INTERNAL_SERVER_ERROR,
-		);
+	} catch (_error) {
+		const serviceResponse = ServiceResponse.failure("Authentication failed", null, StatusCodes.INTERNAL_SERVER_ERROR);
 		res.status(serviceResponse.statusCode).send(serviceResponse);
 	}
 };
-
-

@@ -8,11 +8,11 @@ extendZodWithOpenApi(z);
 export const RoundSchema = z
 	.object({
 		_id: z.string().openapi({ description: "Round MongoDB ObjectId", example: "507f1f77bcf86cd799439014" }),
-		auction_id: z
-			.string()
-			.openapi({ description: "Auction MongoDB ObjectId", example: "507f1f77bcf86cd799439013" }),
+		auction_id: z.string().openapi({ description: "Auction MongoDB ObjectId", example: "507f1f77bcf86cd799439013" }),
 		round_number: z.number().openapi({ description: "Round number", example: 1 }),
-		gift_ids: z.array(z.string()).openapi({ description: "Array of gift IDs in this round", example: ["507f1f77bcf86cd799439011"] }),
+		gift_ids: z
+			.array(z.string())
+			.openapi({ description: "Array of gift IDs in this round", example: ["507f1f77bcf86cd799439011"] }),
 		started_at: z.date().openapi({ description: "Round start timestamp", example: "2024-01-01T00:00:00.000Z" }),
 		ended_at: z
 			.date()
@@ -55,4 +55,3 @@ export const GetRoundsSchema = z
 			.optional(),
 	})
 	.openapi({ title: "GetRounds" });
-

@@ -23,7 +23,11 @@ const GetOwnershipsQuerySchema = z.object({
 	gift_id: z
 		.string()
 		.optional()
-		.openapi({ param: { name: "gift_id", in: "query" }, description: "Filter by gift ID", example: "507f1f77bcf86cd799439012" }),
+		.openapi({
+			param: { name: "gift_id", in: "query" },
+			description: "Filter by gift ID",
+			example: "507f1f77bcf86cd799439012",
+		}),
 	limit: z
 		.string()
 		.optional()
@@ -58,4 +62,3 @@ ownershipRegistry.registerPath({
 });
 
 ownershipRouter.get("/:id", validateRequest(GetOwnershipSchema), ownershipController.getOwnership);
-

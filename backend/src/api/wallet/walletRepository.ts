@@ -26,15 +26,10 @@ export class WalletRepository {
 		return wallet ? this.toWalletType(wallet) : null;
 	}
 
-	private toWalletType(wallet: {
-		_id: number;
-		balance: number;
-	}): WalletType {
+	private toWalletType(wallet: { _id: number; balance: number }): WalletType {
 		return {
 			_id: wallet._id,
 			balance: wallet.balance,
 		};
 	}
 }
-
-

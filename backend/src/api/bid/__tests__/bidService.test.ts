@@ -1,17 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { auctionService } from "@/api/auction/auctionService";
+import { collectionService } from "@/api/collection/collectionService";
+import { walletService } from "@/api/wallet/walletService";
 import { connectMongoDB, disconnectMongoDB } from "@/common/db/mongodb";
 import { connectRedis, disconnectRedis, getRedisClient } from "@/common/db/redis";
-import { bidService } from "../bidService";
-import { auctionService } from "@/api/auction/auctionService";
-import { walletService } from "@/api/wallet/walletService";
-import { collectionService } from "@/api/collection/collectionService";
-import { getAuctionUsersKey, getRoundBidsKey, getFrozenBalanceKey } from "@/common/redis/auctionKeys";
-import { getAuctionState } from "@/common/redis/auctionState";
+import { getAuctionUsersKey, getFrozenBalanceKey, getRoundBidsKey } from "@/common/redis/auctionKeys";
+import Auction from "@/models/Auction";
+import Collection from "@/models/Collection";
+import Round from "@/models/Round";
 import User from "@/models/User";
 import Wallet from "@/models/Wallet";
-import Collection from "@/models/Collection";
-import Auction from "@/models/Auction";
-import Round from "@/models/Round";
+import { bidService } from "../bidService";
 
 describe("BidService Tests", () => {
 	let testCollectionId: string;

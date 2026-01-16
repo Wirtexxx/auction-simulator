@@ -22,11 +22,11 @@ const envSchema = z.object({
 
 	REDIS_PORT: z.coerce.number().int().positive().default(6379),
 
-    REDIS_PASSWORD: z.string().optional(),
+	REDIS_PASSWORD: z.string().optional(),
 
-    JWT_SECRET: z.string().min(1).default("your-secret-key-change-in-production"),
+	JWT_SECRET: z.string().min(1).default("your-secret-key-change-in-production"),
 
-    TELEGRAM_BOT_TOKEN: z.string().optional(),
+	TELEGRAM_BOT_TOKEN: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

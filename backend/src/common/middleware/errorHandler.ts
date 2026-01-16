@@ -11,7 +11,7 @@ const unexpectedRequest: RequestHandler = (_req, res) => {
 	res.status(serviceResponse.statusCode).send(serviceResponse);
 };
 
-const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
+const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 	// Log error with full details (server-side only)
 	logger.error(
 		{

@@ -4,19 +4,15 @@ import { ServiceResponse } from "@/common/models/serviceResponse";
 
 /**
  * NoSQL Injection Protection Middleware
- * 
+ *
  * Protects against MongoDB operator injection attacks by sanitizing
  * request body, query parameters, and route parameters.
- * 
+ *
  * Blocks dangerous MongoDB operators:
  * - $where, $ne, $gt, $gte, $lt, $lte, $in, $nin, $exists, $regex, $or, $and, $nor, $not
  * - $expr, $jsonSchema, $text, $mod, $type, $size, $all, $elemMatch
  */
-export const nosqlInjectionProtection = (
-	req: Request,
-	res: Response,
-	next: NextFunction,
-): void => {
+export const nosqlInjectionProtection = (req: Request, res: Response, next: NextFunction): void => {
 	try {
 		// Dangerous MongoDB operators to block
 		const dangerousOperators = [
@@ -59,7 +55,7 @@ export const nosqlInjectionProtection = (
 			// Check if obj is an object (not array, not Date, not RegExp)
 			if (typeof obj === "object" && !Array.isArray(obj) && !(obj instanceof Date) && !(obj instanceof RegExp)) {
 				for (const key in obj) {
-					if (Object.prototype.hasOwnProperty.call(obj, key)) {
+					if (Object.hasOwn(obj, key)) {
 						const currentPath = path ? `${path}.${key}` : key;
 
 						// Check if key is a dangerous operator
@@ -130,12 +126,8 @@ export const nosqlInjectionProtection = (
 		}
 
 		next();
-	} catch (error) {
-		const serviceResponse = ServiceResponse.failure(
-			"Request validation failed",
-			null,
-			StatusCodes.BAD_REQUEST,
-		);
+	} catch (_error) {
+		const serviceResponse = ServiceResponse.failure("Request validation failed", null, StatusCodes.BAD_REQUEST);
 		res.status(serviceResponse.statusCode).send(serviceResponse);
 	}
 };

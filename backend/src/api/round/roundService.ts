@@ -5,7 +5,7 @@ import { ServiceResponse } from "@/common/models/serviceResponse";
 import Gift from "@/models/Gift";
 import Ownership from "@/models/Ownership";
 import type { Round } from "./roundModel";
-import { RoundRepository, type CreateRoundData, type GetRoundsFilters } from "./roundRepository";
+import { type CreateRoundData, type GetRoundsFilters, RoundRepository } from "./roundRepository";
 
 const logger = pino({ name: "roundService" });
 
@@ -16,7 +16,13 @@ export class RoundService {
 		this.roundRepository = new RoundRepository();
 	}
 
-	async createRound(auctionId: string, collectionId: string, roundNumber: number, giftsPerRound: number, previousRoundGiftIds?: string[]): Promise<ServiceResponse<Round>> {
+	async createRound(
+		auctionId: string,
+		collectionId: string,
+		roundNumber: number,
+		giftsPerRound: number,
+		previousRoundGiftIds?: string[],
+	): Promise<ServiceResponse<Round>> {
 		try {
 			// Get unsold gifts from previous round (if any)
 			const unsoldGiftIds: string[] = previousRoundGiftIds || [];
@@ -34,11 +40,11 @@ export class RoundService {
 
 			// Filter out sold gifts and previous round gifts
 			const availableGifts = allGifts.filter(
-				(gift) => !soldGiftIds.has(gift._id.toString()) && !unsoldGiftIds.includes(gift._id.toString())
+				(gift) => !soldGiftIds.has(gift._id.toString()) && !unsoldGiftIds.includes(gift._id.toString()),
 			);
 
 			// Combine unsold from previous round + new available gifts
-			// Logic: 
+			// Logic:
 			// - If there are unsold gifts from previous round: add all unsold + gifts_per_round new ones
 			// - If no unsold gifts (first round or all were sold): add up to gifts_per_round available gifts
 			// Example 1: Previous round had 5 gifts, 2 sold, 3 unsold:
@@ -66,12 +72,22 @@ export class RoundService {
 			}
 
 			logger.info(
-				{ auctionId, roundNumber, totalGifts: giftIdsToUse.length, unsoldFromPrevious: unsoldGiftIds.length, newGifts: giftIdsToUse.length - unsoldGiftIds.length },
+				{
+					auctionId,
+					roundNumber,
+					totalGifts: giftIdsToUse.length,
+					unsoldFromPrevious: unsoldGiftIds.length,
+					newGifts: giftIdsToUse.length - unsoldGiftIds.length,
+				},
 				"Round gifts prepared",
 			);
 
 			if (giftIdsToUse.length === 0) {
-				return ServiceResponse.failure("No available gifts for this round", null as unknown as Round, StatusCodes.BAD_REQUEST);
+				return ServiceResponse.failure(
+					"No available gifts for this round",
+					null as unknown as Round,
+					StatusCodes.BAD_REQUEST,
+				);
 			}
 
 			const roundData: CreateRoundData = {
@@ -164,7 +180,7 @@ export class RoundService {
 
 			// Return gift IDs that were not sold
 			return round.gift_ids.filter((giftId) => !soldGiftIds.has(giftId));
-		} catch (error) {
+		} catch (_error) {
 			return [];
 		}
 	}
@@ -181,7 +197,7 @@ export class RoundService {
 			const { updateAuctionState } = await import("@/common/redis/auctionState");
 			const { settlementService } = await import("@/services/settlementService");
 			const { getAuctionWebSocketServer } = await import("@/websocket/auctionWebSocket");
-			const wsTypes = await import("@/websocket/types");
+			const _wsTypes = await import("@/websocket/types");
 
 			// Set settling flag to block new bids
 			logger.info({ auctionId, roundNumber }, "Setting settling flag");
@@ -201,13 +217,16 @@ export class RoundService {
 			}
 
 			const round = roundResponse.responseObject;
-			logger.info({ 
-				auctionId, 
-				roundNumber, 
-				roundId: round._id, 
-				status: round.status,
-				giftsCount: round.gift_ids.length
-			}, "Round found, finishing in MongoDB");
+			logger.info(
+				{
+					auctionId,
+					roundNumber,
+					roundId: round._id,
+					status: round.status,
+					giftsCount: round.gift_ids.length,
+				},
+				"Round found, finishing in MongoDB",
+			);
 
 			// Finish round in MongoDB
 			await this.finishRound(round._id);
@@ -232,24 +251,30 @@ export class RoundService {
 			// Trigger settlement (async, don't wait)
 			logger.info({ auctionId, roundNumber }, "Triggering settlement");
 			settlementService.settleRound(auctionId, roundNumber).catch((error) => {
-				logger.error({ 
-					error, 
-					auctionId, 
-					roundNumber,
-					errorMessage: error instanceof Error ? error.message : String(error)
-				}, "Error in settlement after closeRound");
+				logger.error(
+					{
+						error,
+						auctionId,
+						roundNumber,
+						errorMessage: error instanceof Error ? error.message : String(error),
+					},
+					"Error in settlement after closeRound",
+				);
 			});
 
 			logger.info({ auctionId, roundNumber }, "Round closed successfully");
 			return ServiceResponse.success("Round closed successfully", undefined);
 		} catch (error) {
-			logger.error({ 
-				error, 
-				auctionId, 
-				roundNumber,
-				errorMessage: error instanceof Error ? error.message : String(error),
-				errorStack: error instanceof Error ? error.stack : undefined
-			}, "Error in closeRound");
+			logger.error(
+				{
+					error,
+					auctionId,
+					roundNumber,
+					errorMessage: error instanceof Error ? error.message : String(error),
+					errorStack: error instanceof Error ? error.stack : undefined,
+				},
+				"Error in closeRound",
+			);
 			const errorMessage = error instanceof Error ? error.message : "Failed to close round";
 			return ServiceResponse.failure(errorMessage, undefined, StatusCodes.INTERNAL_SERVER_ERROR);
 		}
@@ -257,4 +282,3 @@ export class RoundService {
 }
 
 export const roundService = new RoundService();
-

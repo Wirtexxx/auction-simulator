@@ -1,4 +1,4 @@
-import { parse, validate, deepSnakeToCamelObjKeys, type InitData } from "@tma.js/init-data-node";
+import { deepSnakeToCamelObjKeys, type InitData, parse, validate } from "@tma.js/init-data-node";
 import { env } from "./envConfig";
 
 const MAX_INIT_DATA_AGE = 24 * 60 * 60; // 24 hours in seconds
@@ -7,14 +7,14 @@ function parseInitDataWithoutValidation(initDataRaw: string): InitData | null {
 	const params = new URLSearchParams(initDataRaw);
 	const userStr = params.get("user");
 	const authDateStr = params.get("auth_date");
-	
+
 	if (!userStr || !authDateStr) {
 		return null;
 	}
 
 	const user = JSON.parse(decodeURIComponent(userStr));
 	const authDate = new Date(parseInt(authDateStr, 10) * 1000);
-	
+
 	const authDateUnix = parseInt(authDateStr, 10);
 	const currentTime = Math.floor(Date.now() / 1000);
 
@@ -55,7 +55,7 @@ export function validateTelegramInitData(initDataRaw: string): InitData | null {
 				// If JSON parsing fails, use as is
 			}
 		}
-		
+
 		if (env.isDevelopment) {
 			console.log("🔍 Processing init data:", {
 				originalLength: initDataRaw.length,
@@ -95,7 +95,7 @@ export function validateTelegramInitData(initDataRaw: string): InitData | null {
 				}
 
 				return deepSnakeToCamelObjKeys(parsedData) as unknown as InitData;
-			} catch (parseError) {
+			} catch (_parseError) {
 				// In dev mode, if full validation fails, fallback to simple parsing
 				console.warn("⚠️  Full validation failed, falling back to simple parsing for mock data");
 				return parseInitDataWithoutValidation(initDataString);
@@ -121,4 +121,3 @@ export function validateTelegramInitData(initDataRaw: string): InitData | null {
 		return null;
 	}
 }
-

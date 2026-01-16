@@ -1,63 +1,68 @@
 import { retrieveLaunchParams } from '@tma.js/sdk';
 
-function convertTgWebAppDataToInitDataString(tgWebAppData: any): string | null {
+function convertTgWebAppDataToInitDataString(tgWebAppData: unknown): string | null {
   try {
+    if (typeof tgWebAppData !== 'object' || tgWebAppData === null) {
+      return null;
+    }
+    
+    const data = tgWebAppData as Record<string, unknown>;
     const params: string[] = [];
 
-    if (tgWebAppData.user) {
-      const userEncoded = encodeURIComponent(JSON.stringify(tgWebAppData.user));
+    if (data.user) {
+      const userEncoded = encodeURIComponent(JSON.stringify(data.user));
       params.push(`user=${userEncoded}`);
     }
 
-    if (tgWebAppData.auth_date !== undefined && tgWebAppData.auth_date !== null) {
+    if (data.auth_date !== undefined && data.auth_date !== null) {
       let authDate: number;
-      if (tgWebAppData.auth_date instanceof Date) {
-        authDate = Math.floor(tgWebAppData.auth_date.getTime() / 1000);
-      } else if (typeof tgWebAppData.auth_date === 'string') {
-        const parsedDate = new Date(tgWebAppData.auth_date);
+      if (data.auth_date instanceof Date) {
+        authDate = Math.floor(data.auth_date.getTime() / 1000);
+      } else if (typeof data.auth_date === 'string') {
+        const parsedDate = new Date(data.auth_date);
         if (isNaN(parsedDate.getTime())) {
           return null;
         }
         authDate = Math.floor(parsedDate.getTime() / 1000);
-      } else if (typeof tgWebAppData.auth_date === 'number') {
-        authDate = tgWebAppData.auth_date;
+      } else if (typeof data.auth_date === 'number') {
+        authDate = data.auth_date;
       } else {
         return null;
       }
       params.push(`auth_date=${authDate}`);
     }
 
-    if (tgWebAppData.query_id) {
-      params.push(`query_id=${tgWebAppData.query_id}`);
+    if (data.query_id) {
+      params.push(`query_id=${data.query_id}`);
     }
 
-    if (tgWebAppData.hash) {
-      params.push(`hash=${tgWebAppData.hash}`);
+    if (data.hash) {
+      params.push(`hash=${data.hash}`);
     }
 
-    if (tgWebAppData.chat_type) {
-      params.push(`chat_type=${tgWebAppData.chat_type}`);
+    if (data.chat_type) {
+      params.push(`chat_type=${data.chat_type}`);
     }
 
-    if (tgWebAppData.chat_instance) {
-      params.push(`chat_instance=${tgWebAppData.chat_instance}`);
+    if (data.chat_instance) {
+      params.push(`chat_instance=${data.chat_instance}`);
     }
 
-    if (tgWebAppData.start_param) {
-      params.push(`start_param=${encodeURIComponent(tgWebAppData.start_param)}`);
+    if (data.start_param) {
+      params.push(`start_param=${encodeURIComponent(String(data.start_param))}`);
     }
 
-    if (tgWebAppData.can_send_after !== undefined) {
-      params.push(`can_send_after=${tgWebAppData.can_send_after}`);
+    if (data.can_send_after !== undefined) {
+      params.push(`can_send_after=${data.can_send_after}`);
     }
 
-    if (tgWebAppData.chat) {
-      const chatEncoded = encodeURIComponent(JSON.stringify(tgWebAppData.chat));
+    if (data.chat) {
+      const chatEncoded = encodeURIComponent(JSON.stringify(data.chat));
       params.push(`chat=${chatEncoded}`);
     }
 
-    if (tgWebAppData.receiver) {
-      const receiverEncoded = encodeURIComponent(JSON.stringify(tgWebAppData.receiver));
+    if (data.receiver) {
+      const receiverEncoded = encodeURIComponent(JSON.stringify(data.receiver));
       params.push(`receiver=${receiverEncoded}`);
     }
 
@@ -97,7 +102,7 @@ export function getTelegramInitData(): string {
     }
 
     // Second priority: tgWebAppData (can be string or object)
-    const tgWebAppData = (launchParams as any).tgWebAppData;
+    const tgWebAppData = (launchParams as Record<string, unknown>).tgWebAppData;
     if (tgWebAppData) {
       if (import.meta.env.DEV) {
         console.log('📦 tgWebAppData found:', typeof tgWebAppData);
@@ -170,7 +175,7 @@ export function getTelegramInitData(): string {
 
     if (import.meta.env.DEV) {
       console.error('❌ Mock mode is enabled but init data is not available');
-      console.error('📦 window.Telegram:', (window as any).Telegram);
+      console.error('📦 window.Telegram:', (window as Record<string, unknown>).Telegram);
       console.error('📦 URL params:', window.location.search);
       console.error('📦 localStorage:', localStorage.getItem('tma-js-sdk-launch-params'));
     }

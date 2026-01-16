@@ -1,7 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 import { pino } from "pino";
 import { GiftRepository } from "@/api/gift/giftRepository";
-import { giftService } from "@/api/gift/giftService";
 import { ServiceResponse } from "@/common/models/serviceResponse";
 import type { Collection } from "./collectionModel";
 import { CollectionRepository, type CreateCollectionData, type GetCollectionsFilters } from "./collectionRepository";
@@ -43,8 +42,11 @@ export class CollectionService {
 			const giftPromises: Promise<boolean>[] = [];
 
 			// Log emoji being used for gifts
-			logger.info({ emoji: data.emoji, collectionId: collection._id, totalAmount: data.total_amount }, "Creating gifts with emoji");
-			
+			logger.info(
+				{ emoji: data.emoji, collectionId: collection._id, totalAmount: data.total_amount },
+				"Creating gifts with emoji",
+			);
+
 			for (let i = 0; i < data.total_amount; i++) {
 				const giftId = startingGiftId + i + 1;
 				giftPromises.push(

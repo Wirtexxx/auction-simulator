@@ -8,16 +8,16 @@ import { env } from "@/common/utils/envConfig";
 
 const logger = pino({
 	level: env.isProduction ? "info" : "debug",
-	transport: env.isProduction 
-		? undefined 
+	transport: env.isProduction
+		? undefined
 		: {
-			target: "pino-pretty",
-			options: {
-				colorize: true,
-				translateTime: "HH:MM:ss Z",
-				ignore: "pid,hostname",
+				target: "pino-pretty",
+				options: {
+					colorize: true,
+					translateTime: "HH:MM:ss Z",
+					ignore: "pid,hostname",
+				},
 			},
-		},
 });
 
 const getLogLevel = (status: number) => {
@@ -50,15 +50,15 @@ const httpLogger = pinoHttp({
 				url: req.url,
 				id: req.id,
 			};
-			
+
 			if (req.body && Object.keys(req.body).length > 0) {
 				serialized.body = req.body;
 			}
-			
+
 			if (req.headers.authorization) {
 				serialized.auth = req.headers.authorization;
 			}
-			
+
 			return serialized;
 		},
 		res: (res) => ({

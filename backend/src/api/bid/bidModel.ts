@@ -12,5 +12,3 @@ export const PlaceBidSchema = z.object({
 	auctionId: z.string().min(1),
 	amount: z.number().positive(),
 });
-
-

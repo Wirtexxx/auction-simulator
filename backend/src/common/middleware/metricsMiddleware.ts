@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { metricsService } from "../metrics/metricsService";
 
 /**
@@ -13,13 +13,9 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
 
 	// Override res.end to capture response time
 	const originalEnd = res.end.bind(res);
-	
+
 	// Type assertion to handle Express Response.end overloads
-	res.end = function (
-		chunk?: unknown,
-		encoding?: unknown,
-		cb?: () => void,
-	): Response {
+	res.end = ((chunk?: unknown, encoding?: unknown, cb?: () => void): Response => {
 		const duration = (Date.now() - startTime) / 1000; // Convert to seconds
 		const statusCode = res.statusCode.toString();
 
@@ -60,7 +56,7 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
 			// end()
 			return originalEnd();
 		}
-	} as typeof res.end;
+	}) as typeof res.end;
 
 	next();
 }

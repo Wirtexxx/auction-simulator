@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getCollectionById } from '../lib/api/collection';
+import type { Collection } from '../lib/api/types';
 import { getGifts, type Gift } from '../lib/api/gift';
 import { getOwnershipsByGiftId, type Ownership } from '../lib/api/ownership';
 import { Card, CardContent } from '../components/ui/card';
@@ -15,7 +16,7 @@ interface GiftWithOwnership extends Gift {
 export function CollectionDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const [collection, setCollection] = useState<any>(null);
+    const [collection, setCollection] = useState<Collection | null>(null);
     const [gifts, setGifts] = useState<GiftWithOwnership[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);

@@ -4,7 +4,7 @@ import { getAuctionById } from "../lib/api/auction";
 import { getCollectionById } from "../lib/api/collection";
 import { getRoundBids } from "../lib/api/bid";
 import { getCurrentRound, type Round } from "../lib/api/round";
-import { useAuctionWebSocket, type BidPlacedEvent, type RoundStartedEvent, type RoundClosedEvent, type RoundSettledEvent } from "../hooks/useAuctionWebSocket";
+import { useAuctionWebSocket, type BidPlacedEvent, type RoundStartedEvent, type RoundSettledEvent } from "../hooks/useAuctionWebSocket";
 import { getUser } from "../lib/authStorage";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
@@ -138,7 +138,7 @@ export function AuctionDetailPage() {
 
     // WebSocket for real-time updates
     const wsEnabled = !!id && !!auction?.responseObject && auction.responseObject.status === "active";
-    const { isConnected: wsConnected, error: wsError } = useAuctionWebSocket({
+    const { isConnected: wsConnected } = useAuctionWebSocket({
         auctionId: id || null,
         enabled: wsEnabled,
         onBidPlaced: handleBidPlaced,
@@ -214,10 +214,8 @@ export function AuctionDetailPage() {
             }
         }
     }, [
-        auction?.responseObject?.current_round_number,
-        auction?.responseObject?.current_round_started_at,
-        auction?.responseObject?.round_duration,
-        auction?.responseObject?.status,
+        auction?.responseObject,
+        roundEndTs,
         id,
     ]);
 

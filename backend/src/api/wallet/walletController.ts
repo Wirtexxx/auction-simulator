@@ -22,5 +22,3 @@ export const walletController = {
 		return res.status(serviceResponse.statusCode).send(serviceResponse);
 	},
 };
-
-

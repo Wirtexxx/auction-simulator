@@ -10,7 +10,11 @@ export function useCountdown(
     options: UseCountdownOptions = {}
 ) {
     const { enabled = true, onComplete } = options;
-    const [remaining, setRemaining] = useState(0);
+    const [remaining, setRemaining] = useState(() => {
+        if (!enabled || !endTime) return 0;
+        const now = Date.now();
+        return Math.max(0, Math.floor((endTime - now) / 1000));
+    });
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
@@ -19,8 +23,9 @@ export function useCountdown(
                 clearInterval(intervalRef.current);
                 intervalRef.current = null;
             }
-            setRemaining(0);
-            return;
+            // Use setTimeout to avoid synchronous setState in effect
+            const timeoutId = setTimeout(() => setRemaining(0), 0);
+            return () => clearTimeout(timeoutId);
         }
 
         const updateCountdown = () => {

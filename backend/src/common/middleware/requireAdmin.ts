@@ -12,15 +12,10 @@ export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: Nex
 	}
 
 	if (req.user.role !== "admin") {
-		const serviceResponse = ServiceResponse.failure(
-			"Admin access required",
-			null,
-			StatusCodes.FORBIDDEN,
-		);
+		const serviceResponse = ServiceResponse.failure("Admin access required", null, StatusCodes.FORBIDDEN);
 		res.status(serviceResponse.statusCode).send(serviceResponse);
 		return;
 	}
 
 	next();
 };
-

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { telegramBotService } from "./telegramBotService";
 import type { TelegramUpdate } from "./telegramBotModel";
+import { telegramBotService } from "./telegramBotService";
 
 export const telegramBotController = {
 	/**

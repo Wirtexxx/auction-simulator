@@ -1,7 +1,7 @@
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 
-import { AuctionSchema } from "@/api-docs/modelSchemas";
+import type { AuctionSchema } from "@/api-docs/modelSchemas";
 import { commonValidations } from "@/common/utils/commonValidation";
 
 extendZodWithOpenApi(z);
@@ -15,16 +15,8 @@ export const CreateAuctionSchema = z
 				.string()
 				.min(1)
 				.openapi({ description: "Collection MongoDB ObjectId", example: "507f1f77bcf86cd799439011" }),
-			round_duration: z
-				.number()
-				.int()
-				.positive()
-				.openapi({ description: "Round duration in seconds", example: 300 }),
-			gifts_per_round: z
-				.number()
-				.int()
-				.positive()
-				.openapi({ description: "Number of gifts per round", example: 5 }),
+			round_duration: z.number().int().positive().openapi({ description: "Round duration in seconds", example: 300 }),
+			gifts_per_round: z.number().int().positive().openapi({ description: "Number of gifts per round", example: 5 }),
 		}),
 	})
 	.openapi({ title: "CreateAuction" });
@@ -83,5 +75,3 @@ export const FinishAuctionSchema = z
 		}),
 	})
 	.openapi({ title: "FinishAuction" });
-
-

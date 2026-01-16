@@ -1,7 +1,7 @@
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 
-import { OwnershipSchema } from "@/api-docs/modelSchemas";
+import type { OwnershipSchema } from "@/api-docs/modelSchemas";
 import { commonValidations } from "@/common/utils/commonValidation";
 
 extendZodWithOpenApi(z);
@@ -32,7 +32,11 @@ export const GetOwnershipsSchema = z
 				gift_id: z
 					.string()
 					.optional()
-					.openapi({ param: { name: "gift_id", in: "query" }, description: "Filter by gift ID", example: "507f1f77bcf86cd799439012" }),
+					.openapi({
+						param: { name: "gift_id", in: "query" },
+						description: "Filter by gift ID",
+						example: "507f1f77bcf86cd799439012",
+					}),
 				limit: z
 					.string()
 					.optional()
@@ -51,4 +55,3 @@ export const GetOwnershipsSchema = z
 			.optional(),
 	})
 	.openapi({ title: "GetOwnerships" });
-
