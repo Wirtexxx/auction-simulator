@@ -73,7 +73,7 @@ export function useTelegramBackButton() {
             if (unsubscribeRef.current) {
                 try {
                     unsubscribeRef.current();
-                } catch (error) {
+                } catch {
                     // Ignore cleanup errors
                 }
             }

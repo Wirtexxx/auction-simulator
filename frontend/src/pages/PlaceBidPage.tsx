@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "react-router-dom";
 import { getAuctionById, type Auction } from "../lib/api/auction";
 import { getUser } from "../lib/authStorage";
 import { Card, CardContent } from "../components/ui/card";
@@ -10,62 +10,22 @@ import { Slider } from "../components/ui/slider";
 
 export function PlaceBidPage() {
     const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
     const user = getUser();
     const [auction, setAuction] = useState<Auction | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentBid, setCurrentBid] = useState(7200);
-    const [minBid, setMinBid] = useState(4260);
+    const [minBid] = useState(4260);
     const [remainingTime, setRemainingTime] = useState(3);
-    const [remainingItems, setRemainingItems] = useState(9900);
-    const [topWinners, setTopWinners] = useState<
+    const [remainingItems] = useState(9900);
+    const [topWinners] = useState<
         Array<{ name: string; bid: number; avatar?: string }>
     >([
         { name: "Alicia Brown", bid: 9925 },
         { name: "Robert Stock", bid: 9000 },
     ]);
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const fetchingRef = useRef(false);
-    const auctionRef = useRef<Auction | null>(null);
 
-    // Fetch auction data only when id changes
-    useEffect(() => {
-        if (id && !fetchingRef.current) {
-            fetchingRef.current = true;
-            fetchAuction().finally(() => {
-                fetchingRef.current = false;
-            });
-        }
-    }, [id]);
-
-    // Update countdown timer separately
-    useEffect(() => {
-        if (auction) {
-            auctionRef.current = auction;
-        }
-    }, [auction]);
-
-    useEffect(() => {
-        // Update countdown every second
-        intervalRef.current = setInterval(() => {
-            const currentAuction = auctionRef.current;
-            if (currentAuction && currentAuction.status === "active" && currentAuction.current_round_started_at) {
-                const roundStartTime = new Date(currentAuction.current_round_started_at).getTime();
-                const endTime = roundStartTime + currentAuction.round_duration * 1000;
-                const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-                setRemainingTime(remaining);
-            }
-        }, 1000);
-
-        return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-            }
-        };
-    }, []);
-
-    const fetchAuction = async () => {
+    const fetchAuction = useCallback(async () => {
         if (!id) return;
 
         try {
@@ -97,7 +57,11 @@ export function PlaceBidPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        fetchAuction();
+    }, [fetchAuction]);
 
     const formatCountdown = (seconds: number): string => {
         if (seconds <= 0) {

@@ -4,10 +4,10 @@ import jwt from "jsonwebtoken";
 import { ServiceResponse } from "@/common/models/serviceResponse";
 import { env } from "@/common/utils/envConfig";
 import { validateTelegramInitData } from "@/common/utils/telegramAuth";
+import { walletService } from "../wallet/walletService";
+import { createUserDataFromTelegram } from "./userHelpers";
 import type { User } from "./userModel";
 import { UserRepository } from "./userRepository";
-import { createUserDataFromTelegram } from "./userHelpers";
-import { walletService } from "../wallet/walletService";
 
 export interface AuthResponse {
 	user: User;
@@ -24,7 +24,7 @@ export class UserService {
 	async authenticateWithTelegram(initDataRaw: string): Promise<ServiceResponse<AuthResponse>> {
 		try {
 			if (env.isDevelopment) {
-				console.log("📥 Received init data:", initDataRaw.substring(0, 100) + "...");
+				console.log("📥 Received init data:", `${initDataRaw.substring(0, 100)}...`);
 			}
 
 			// Validate Telegram init data

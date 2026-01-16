@@ -2,7 +2,7 @@ import { StatusCodes } from "http-status-codes";
 
 import { ServiceResponse } from "@/common/models/serviceResponse";
 import type { Ownership } from "./ownershipModel";
-import { OwnershipRepository, type GetOwnershipsFilters, type CreateOwnershipData } from "./ownershipRepository";
+import { type CreateOwnershipData, type GetOwnershipsFilters, OwnershipRepository } from "./ownershipRepository";
 
 export class OwnershipService {
 	private ownershipRepository: OwnershipRepository;
@@ -43,4 +43,3 @@ export class OwnershipService {
 }
 
 export const ownershipService = new OwnershipService();
-

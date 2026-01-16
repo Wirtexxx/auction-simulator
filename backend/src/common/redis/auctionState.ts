@@ -1,10 +1,6 @@
 import { pino } from "pino";
 import { getRedisClient } from "@/common/db/redis";
-import {
-	getAuctionStateKey,
-	getRoundTimeoutsKey,
-	getRoundBidsKey,
-} from "./auctionKeys";
+import { getAuctionStateKey, getRoundTimeoutsKey } from "./auctionKeys";
 
 const logger = pino({ name: "auctionState" });
 
@@ -65,10 +61,7 @@ export async function initializeAuctionStateWithTime(
 	const timeoutsKey = getRoundTimeoutsKey();
 	await redis.zadd(timeoutsKey, roundEndTs, `${auctionId}:${roundNumber}`);
 
-	logger.info(
-		{ auctionId, roundNumber, roundEndTs },
-		"Auction state initialized in Redis",
-	);
+	logger.info({ auctionId, roundNumber, roundEndTs }, "Auction state initialized in Redis");
 }
 
 /**
@@ -76,9 +69,7 @@ export async function initializeAuctionStateWithTime(
  * @param auctionId - Auction ID
  * @returns Promise<AuctionState | null>
  */
-export async function getAuctionState(
-	auctionId: string,
-): Promise<AuctionState | null> {
+export async function getAuctionState(auctionId: string): Promise<AuctionState | null> {
 	const redis = getRedisClient();
 	const stateKey = getAuctionStateKey(auctionId);
 
@@ -102,10 +93,7 @@ export async function getAuctionState(
  * @param updates - Partial state updates
  * @returns Promise<void>
  */
-export async function updateAuctionState(
-	auctionId: string,
-	updates: Partial<AuctionState>,
-): Promise<void> {
+export async function updateAuctionState(auctionId: string, updates: Partial<AuctionState>): Promise<void> {
 	const redis = getRedisClient();
 	const stateKey = getAuctionStateKey(auctionId);
 
@@ -161,18 +149,11 @@ export async function isRoundActive(auctionId: string): Promise<boolean> {
  * @param roundEndTs - Round end timestamp in milliseconds
  * @returns Promise<void>
  */
-export async function addRoundTimer(
-	auctionId: string,
-	roundNumber: number,
-	roundEndTs: number,
-): Promise<void> {
+export async function addRoundTimer(auctionId: string, roundNumber: number, roundEndTs: number): Promise<void> {
 	const redis = getRedisClient();
 	const timeoutsKey = getRoundTimeoutsKey();
 	await redis.zadd(timeoutsKey, roundEndTs, `${auctionId}:${roundNumber}`);
-	logger.info(
-		{ auctionId, roundNumber, roundEndTs },
-		"Round timer added to timeouts",
-	);
+	logger.info({ auctionId, roundNumber, roundEndTs }, "Round timer added to timeouts");
 }
 
 /**
@@ -181,10 +162,7 @@ export async function addRoundTimer(
  * @param roundNumber - Round number
  * @returns Promise<void>
  */
-export async function removeRoundTimer(
-	auctionId: string,
-	roundNumber: number,
-): Promise<void> {
+export async function removeRoundTimer(auctionId: string, roundNumber: number): Promise<void> {
 	const redis = getRedisClient();
 	const timeoutsKey = getRoundTimeoutsKey();
 	await redis.zrem(timeoutsKey, `${auctionId}:${roundNumber}`);
@@ -203,12 +181,7 @@ export async function getExpiredRoundTimers(
 	const timeoutsKey = getRoundTimeoutsKey();
 
 	// Get all timers with score <= currentTime
-	const expired = await redis.zrangebyscore(
-		timeoutsKey,
-		0,
-		currentTime,
-		"WITHSCORES",
-	);
+	const expired = await redis.zrangebyscore(timeoutsKey, 0, currentTime, "WITHSCORES");
 
 	const result: Array<{ auctionId: string; roundNumber: number }> = [];
 
@@ -220,26 +193,15 @@ export async function getExpiredRoundTimers(
 
 		if (auctionId && roundNumber) {
 			result.push({ auctionId, roundNumber });
-			logger.debug(
-				{ auctionId, roundNumber, expiredAt: score, currentTime },
-				"Found expired round timer",
-			);
+			logger.debug({ auctionId, roundNumber, expiredAt: score, currentTime }, "Found expired round timer");
 		} else {
-			logger.warn(
-				{ member, score },
-				"Invalid timer entry in Redis",
-			);
+			logger.warn({ member, score }, "Invalid timer entry in Redis");
 		}
 	}
 
 	if (result.length > 0) {
-		logger.info(
-			{ expiredCount: result.length, currentTime },
-			"Found expired round timers",
-		);
+		logger.info({ expiredCount: result.length, currentTime }, "Found expired round timers");
 	}
 
 	return result;
 }
-
-

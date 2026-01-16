@@ -80,10 +80,7 @@ export class AuctionRepository {
 	}
 
 	async finishAllActiveAuctions(): Promise<number> {
-		const result = await Auction.updateMany(
-			{ status: "active" },
-			{ status: "finished" }
-		);
+		const result = await Auction.updateMany({ status: "active" }, { status: "finished" });
 		return result.modifiedCount || 0;
 	}
 
@@ -100,7 +97,8 @@ export class AuctionRepository {
 	}): AuctionType {
 		return {
 			_id: auction._id.toString(),
-			collection_id: typeof auction.collection_id === "string" ? auction.collection_id : auction.collection_id.toString(),
+			collection_id:
+				typeof auction.collection_id === "string" ? auction.collection_id : auction.collection_id.toString(),
 			round_duration: auction.round_duration,
 			gifts_per_round: auction.gifts_per_round,
 			current_round_number: auction.current_round_number,
@@ -111,5 +109,3 @@ export class AuctionRepository {
 		};
 	}
 }
-
-

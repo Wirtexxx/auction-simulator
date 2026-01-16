@@ -54,3 +54,20 @@ export async function getAuctions(
     });
 }
 
+export async function startAuction(
+    id: string
+): Promise<ServiceResponse<Auction>> {
+    return apiRequest<Auction>(`/auctions/${id}/start`, {
+        method: "POST",
+        requiresAuth: true,
+    });
+}
+
+export async function finishAuction(
+    id: string
+): Promise<ServiceResponse<Auction>> {
+    return apiRequest<Auction>(`/auctions/${id}/finish`, {
+        method: "POST",
+        requiresAuth: true,
+    });
+}

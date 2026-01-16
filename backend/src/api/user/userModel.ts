@@ -13,13 +13,10 @@ export type User = z.infer<typeof UserSchema>;
 export const TelegramAuthSchema = z
 	.object({
 		body: z.object({
-			initData: z
-				.string()
-				.min(1)
-				.openapi({
-					description: "Telegram Mini App init data (raw string from tgWebAppData)",
-					example: "query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A279058397...&hash=...",
-				}),
+			initData: z.string().min(1).openapi({
+				description: "Telegram Mini App init data (raw string from tgWebAppData)",
+				example: "query_id=AAHdF6IQAAAAAN0XohDhrOrc&user=%7B%22id%22%3A279058397...&hash=...",
+			}),
 		}),
 	})
 	.openapi({ title: "TelegramAuth" });

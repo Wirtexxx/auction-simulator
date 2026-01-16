@@ -1,12 +1,11 @@
 import { StatusCodes } from "http-status-codes";
-import { getRedisClient } from "@/common/db/redis";
-import { getFrozenBalanceKey, getAuctionFrozenKeysPattern } from "@/common/redis/auctionKeys";
 import { pino } from "pino";
-
+import { getRedisClient } from "@/common/db/redis";
 import { ServiceResponse } from "@/common/models/serviceResponse";
+import { getAuctionFrozenKeysPattern, getFrozenBalanceKey } from "@/common/redis/auctionKeys";
 import User from "@/models/User";
 import type { Wallet } from "./walletModel";
-import { WalletRepository, type CreateWalletData } from "./walletRepository";
+import { type CreateWalletData, WalletRepository } from "./walletRepository";
 
 const logger = pino({ name: "walletService" });
 
@@ -122,7 +121,7 @@ export class WalletService {
 			const values = await redis.mget(...keys);
 			const total = values.reduce((sum, val) => {
 				const amount = parseFloat(val || "0");
-				return sum + (isNaN(amount) ? 0 : amount);
+				return sum + (Number.isNaN(amount) ? 0 : amount);
 			}, 0);
 
 			return total;
@@ -144,10 +143,7 @@ export class WalletService {
 			// Check available balance
 			const available = await this.getAvailableBalance(userId);
 			if (available < amount) {
-				logger.warn(
-					{ userId, amount, available, auctionId },
-					"Insufficient available balance for freeze",
-				);
+				logger.warn({ userId, amount, available, auctionId }, "Insufficient available balance for freeze");
 				return false;
 			}
 
@@ -223,7 +219,7 @@ export class WalletService {
 		try {
 			const value = await redis.get(key);
 			const amount = parseFloat(value || "0");
-			return isNaN(amount) ? 0 : amount;
+			return Number.isNaN(amount) ? 0 : amount;
 		} catch (error) {
 			logger.error({ error, userId, auctionId }, "Error getting frozen balance");
 			return 0;
@@ -250,5 +246,3 @@ export class WalletService {
 }
 
 export const walletService = new WalletService();
-
-

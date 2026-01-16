@@ -69,4 +69,3 @@ roundRegistry.registerPath({
 });
 
 roundRouter.get("/current", roundController.getCurrentRound);
-

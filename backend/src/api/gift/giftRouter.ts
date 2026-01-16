@@ -34,13 +34,7 @@ giftRegistry.registerPath({
 	responses: createApiResponse(GiftSchema, "Gift created successfully", 201),
 });
 
-giftRouter.post(
-	"/",
-	authenticate,
-	requireAdmin,
-	validateRequest(CreateGiftSchema),
-	giftController.createGift,
-);
+giftRouter.post("/", authenticate, requireAdmin, validateRequest(CreateGiftSchema), giftController.createGift);
 
 // GET /gifts - Get all gifts
 const GetGiftsQuerySchema = z.object({

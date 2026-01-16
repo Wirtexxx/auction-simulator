@@ -1,34 +1,31 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
-import mongoose from "mongoose";
-import Redis from "ioredis";
+import type Redis from "ioredis";
 import jwt from "jsonwebtoken";
-import WebSocket from "ws";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { bidService } from "@/api/bid/bidService";
+import { collectionService } from "@/api/collection/collectionService";
+import { roundService } from "@/api/round/roundService";
+import { walletService } from "@/api/wallet/walletService";
 import { connectMongoDB, disconnectMongoDB } from "@/common/db/mongodb";
 import { connectRedis, disconnectRedis, getRedisClient } from "@/common/db/redis";
+import { getAuctionUsersKey, getFrozenBalanceKey, getRoundBidsKey } from "@/common/redis/auctionKeys";
+import { getAuctionState } from "@/common/redis/auctionState";
 import { env } from "@/common/utils/envConfig";
-import { auctionService } from "../auctionService";
-import { bidService } from "@/api/bid/bidService";
-import { walletService } from "@/api/wallet/walletService";
-import { roundService } from "@/api/round/roundService";
-import { collectionService } from "@/api/collection/collectionService";
-import { userService } from "@/api/user/userService";
-import { settlementService } from "@/services/settlementService";
-import { getAuctionState, initializeAuctionState } from "@/common/redis/auctionState";
-import { getRoundBidsKey, getAuctionUsersKey, getFrozenBalanceKey } from "@/common/redis/auctionKeys";
+import Auction from "@/models/Auction";
 import Collection from "@/models/Collection";
+import Ownership from "@/models/Ownership";
+import Round from "@/models/Round";
 import User from "@/models/User";
 import Wallet from "@/models/Wallet";
-import Auction from "@/models/Auction";
-import Round from "@/models/Round";
-import Ownership from "@/models/Ownership";
+import { settlementService } from "@/services/settlementService";
+import { auctionService } from "../auctionService";
 
 describe("Auction Full Cycle Integration Tests", () => {
 	let testCollectionId: string;
-	let testUserIds: number[] = [];
-	let testTokens: string[] = [];
+	const testUserIds: number[] = [];
+	const testTokens: string[] = [];
 	let testAuctionId: string;
 	let redis: Redis;
-	let httpServer: any;
+	let _httpServer: any;
 
 	beforeAll(async () => {
 		// Connect to databases
@@ -163,11 +160,7 @@ describe("Auction Full Cycle Integration Tests", () => {
 			const bidResults = [];
 
 			for (let i = 0; i < 5; i++) {
-				const bidResponse = await bidService.placeBid(
-					testAuctionId,
-					testUserIds[i],
-					bidAmounts[i],
-				);
+				const bidResponse = await bidService.placeBid(testAuctionId, testUserIds[i], bidAmounts[i]);
 
 				expect(bidResponse.success).toBe(true);
 				bidResults.push(bidResponse);
@@ -204,7 +197,7 @@ describe("Auction Full Cycle Integration Tests", () => {
 			// Step 4: Close round manually (simulating timer)
 			// Wait a bit to ensure round is fully created
 			await new Promise((resolve) => setTimeout(resolve, 200));
-			
+
 			const closeResponse = await roundService.closeRound(testAuctionId, 1);
 			if (!closeResponse.success) {
 				// If closeRound failed, check what's wrong
@@ -399,22 +392,22 @@ describe("Auction Full Cycle Integration Tests", () => {
 				// If closeRound failed, try to settle manually
 				await settlementService.settleRound(auctionId, 1);
 			} else {
-			// Wait for settlement to complete (check settled flag)
-			const redis = getRedisClient();
-			const tieSettledKey = `auction:${auctionId}:round:1:settled`;
-			let tieSettled = false;
-			for (let i = 0; i < 10; i++) {
-				await new Promise((resolve) => setTimeout(resolve, 500));
-				const settledValue = await redis.get(tieSettledKey);
-				if (settledValue === "1") {
-					tieSettled = true;
-					break;
+				// Wait for settlement to complete (check settled flag)
+				const redis = getRedisClient();
+				const tieSettledKey = `auction:${auctionId}:round:1:settled`;
+				let tieSettled = false;
+				for (let i = 0; i < 10; i++) {
+					await new Promise((resolve) => setTimeout(resolve, 500));
+					const settledValue = await redis.get(tieSettledKey);
+					if (settledValue === "1") {
+						tieSettled = true;
+						break;
+					}
 				}
-			}
-			if (!tieSettled) {
-				// If settlement didn't complete, call it manually
-				await settlementService.settleRound(auctionId, 1);
-			}
+				if (!tieSettled) {
+					// If settlement didn't complete, call it manually
+					await settlementService.settleRound(auctionId, 1);
+				}
 			}
 
 			// Winners should be user 0 and user 1 (earlier bids)

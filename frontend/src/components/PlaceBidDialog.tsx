@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { getAuctionById, type Auction } from "../lib/api/auction";
 import { getWallet } from "../lib/api/wallet";
 import { getCollectionById } from "../lib/api/collection";
+import type { Collection } from "../lib/api/types";
 import { getCurrentRound, type Round } from "../lib/api/round";
 import { getRoundBids } from "../lib/api/bid";
 import { getUser } from "../lib/authStorage";
@@ -15,7 +16,7 @@ import {
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
-import { Loader2, X, CheckCircle } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { Slider } from "./ui/slider";
 import { AuctionBidsList } from "./AuctionBidsList";
 import { AuctionStatusCard } from "./AuctionStatusCard";
@@ -58,16 +59,6 @@ const DEFAULT_VALUES = {
     SLIDER_VALUE: 50,
 } as const;
 
-const calculateRemainingTime = (auction: Auction): number => {
-    if (auction.status !== "active" || !auction.current_round_started_at) {
-        return 0;
-    }
-    const roundStartTime = new Date(auction.current_round_started_at).getTime();
-    const endTime = roundStartTime + auction.round_duration * 1000;
-    return Math.max(0, Math.floor((endTime - Date.now()) / 1000));
-};
-
-
 const cubicEaseInOut = (t: number): number => {
     return t < 0.5
         ? 4 * t * t * t
@@ -97,7 +88,7 @@ export function PlaceBidDialog({ auctionId, open, onOpenChange }: PlaceBidDialog
     const [roundEndTs, setRoundEndTs] = useState<number | null>(null);
     const [placingBid, setPlacingBid] = useState(false);
     const [currentRound, setCurrentRound] = useState<Round | null>(null);
-    const [collection, setCollection] = useState<any>(null);
+    const [collection, setCollection] = useState<Collection | null>(null);
 
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const fetchingRef = useRef(false);

@@ -1,6 +1,6 @@
 import { pino } from "pino";
-import { getExpiredRoundTimers, removeRoundTimer, isAuctionSettling } from "@/common/redis/auctionState";
 import { roundService } from "@/api/round/roundService";
+import { getExpiredRoundTimers, isAuctionSettling, removeRoundTimer } from "@/common/redis/auctionState";
 
 const logger = pino({ name: "roundTimerService" });
 
@@ -54,20 +54,14 @@ export class RoundTimerService {
 					// Check if auction is already settling to avoid duplicate processing
 					const isSettling = await isAuctionSettling(auctionId);
 					if (isSettling) {
-						logger.debug(
-							{ auctionId, roundNumber },
-							"Round is already settling, removing timer and skipping",
-						);
+						logger.debug({ auctionId, roundNumber }, "Round is already settling, removing timer and skipping");
 						// Remove timer if already settling to prevent repeated attempts
 						await removeRoundTimer(auctionId, roundNumber);
 						continue;
 					}
 
 					// Check if round exists before attempting to close
-					logger.info(
-						{ auctionId, roundNumber },
-						"Round timer expired, checking if round exists",
-					);
+					logger.info({ auctionId, roundNumber }, "Round timer expired, checking if round exists");
 
 					const roundResponse = await roundService.getRoundByAuctionAndNumber(auctionId, roundNumber);
 					if (!roundResponse.success || !roundResponse.responseObject) {
@@ -92,10 +86,7 @@ export class RoundTimerService {
 					// Remove timer ONLY after successful close
 					if (closeResponse.success) {
 						await removeRoundTimer(auctionId, roundNumber);
-						logger.info(
-							{ auctionId, roundNumber },
-							"Round closed successfully, timer removed",
-						);
+						logger.info({ auctionId, roundNumber }, "Round closed successfully, timer removed");
 					} else {
 						logger.error(
 							{ auctionId, roundNumber, error: closeResponse.message },
@@ -114,20 +105,17 @@ export class RoundTimerService {
 					// But log the error for investigation
 					try {
 						await removeRoundTimer(auctionId, roundNumber);
-						logger.warn(
-							{ auctionId, roundNumber },
-							"Timer removed after error to prevent infinite loops",
-						);
+						logger.warn({ auctionId, roundNumber }, "Timer removed after error to prevent infinite loops");
 					} catch (removeError) {
-						logger.error(
-							{ error: removeError, auctionId, roundNumber },
-							"Failed to remove timer after error",
-						);
+						logger.error({ error: removeError, auctionId, roundNumber }, "Failed to remove timer after error");
 					}
 				}
 			}
 		} catch (error) {
-			logger.error({ error, errorMessage: error instanceof Error ? error.message : String(error) }, "Error checking expired rounds");
+			logger.error(
+				{ error, errorMessage: error instanceof Error ? error.message : String(error) },
+				"Error checking expired rounds",
+			);
 		}
 	}
 }
@@ -141,5 +129,3 @@ export function getRoundTimerService(): RoundTimerService {
 	}
 	return roundTimerService;
 }
-
-

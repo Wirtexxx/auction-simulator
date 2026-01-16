@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { getUser } from "../lib/authStorage";
 import { getOwnershipsByOwnerId, type Ownership } from "../lib/api/ownership";
 import { getGiftById, type Gift as GiftType } from "../lib/api/gift";
@@ -21,22 +21,7 @@ export function ProfilePage() {
     const fetchingRef = useRef(false);
     const userIdRef = useRef<number | null>(null);
 
-    useEffect(() => {
-        // Prevent multiple simultaneous fetches
-        if (!user || fetchingRef.current) {
-            return;
-        }
-
-        // Only fetch if user ID changed
-        if (userIdRef.current === user._id) {
-            return;
-        }
-
-        userIdRef.current = user._id;
-        fetchInventory();
-    }, [user?._id]);
-
-    const fetchInventory = async () => {
+    const fetchInventory = useCallback(async () => {
         if (!user || fetchingRef.current) return;
 
         fetchingRef.current = true;
@@ -116,7 +101,22 @@ export function ProfilePage() {
             setLoading(false);
             fetchingRef.current = false;
         }
-    };
+    }, [user]);
+
+    useEffect(() => {
+        // Prevent multiple simultaneous fetches
+        if (!user || fetchingRef.current) {
+            return;
+        }
+
+        // Only fetch if user ID changed
+        if (userIdRef.current === user._id) {
+            return;
+        }
+
+        userIdRef.current = user._id;
+        fetchInventory();
+    }, [user, fetchInventory]);
 
     if (!user) {
         return null;

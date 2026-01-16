@@ -35,7 +35,7 @@ export class TelegramBotService {
 			}
 
 			// Process commands
-			if (text && text.startsWith("/")) {
+			if (text?.startsWith("/")) {
 				const command = text.split(" ")[0].toLowerCase();
 				const args = text.split(" ").slice(1).join(" ");
 
@@ -140,10 +140,7 @@ export class TelegramBotService {
 
 			if (!response.ok) {
 				const errorText = await response.text();
-				logger.error(
-					{ chatId, status: response.status, error: errorText },
-					"Failed to send Telegram message",
-				);
+				logger.error({ chatId, status: response.status, error: errorText }, "Failed to send Telegram message");
 				return false;
 			}
 

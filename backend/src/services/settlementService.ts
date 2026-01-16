@@ -1,14 +1,11 @@
 import { pino } from "pino";
-import { getRedisClient } from "@/common/db/redis";
-import {
-	getRoundBidsKey,
-	getRoundSettledKey,
-} from "@/common/redis/auctionKeys";
-import { updateAuctionState } from "@/common/redis/auctionState";
 import { walletService } from "@/api/wallet/walletService";
+import { getRedisClient } from "@/common/db/redis";
+import { metricsService } from "@/common/metrics/metricsService";
+import { getRoundBidsKey, getRoundSettledKey } from "@/common/redis/auctionKeys";
+import { updateAuctionState } from "@/common/redis/auctionState";
 import { getAuctionWebSocketServer } from "@/websocket/auctionWebSocket";
 import type { RoundSettledEvent } from "@/websocket/types";
-import { metricsService } from "@/common/metrics/metricsService";
 
 const logger = pino({ name: "settlementService" });
 
@@ -31,10 +28,7 @@ export class SettlementService {
 			// 1. Check idempotency: if already settled, skip
 			const alreadySettled = await redis.get(settledKey);
 			if (alreadySettled) {
-				logger.info(
-					{ auctionId, roundNumber },
-					"Round already settled, skipping",
-				);
+				logger.info({ auctionId, roundNumber }, "Round already settled, skipping");
 				return;
 			}
 
@@ -49,7 +43,7 @@ export class SettlementService {
 			}
 
 			const auction = auctionResponse.responseObject;
-			
+
 			// Get the actual round to determine how many gifts are in this round
 			const { roundService } = await import("@/api/round/roundService");
 			const roundResponse = await roundService.getRoundByAuctionAndNumber(auctionId, roundNumber);
@@ -75,10 +69,10 @@ export class SettlementService {
 				logger.info({ auctionId, roundNumber }, "No bids in round, skipping settlement");
 				// Mark as settled anyway
 				await redis.set(settledKey, "1");
-				
+
 				// Clear settling flag before moving to next round
 				await updateAuctionState(auctionId, { settling: false });
-				
+
 				// Move to next round (all gifts from this round will be unsold and transferred)
 				// IMPORTANT: nextRound() will copy bids from current round to new round
 				// Even if there are no bids, we should call nextRound() before cleanup
@@ -90,7 +84,7 @@ export class SettlementService {
 					logger.error({ error, auctionId, roundNumber }, "Error moving to next round after empty settlement");
 					// Don't throw - settlement is complete
 				}
-				
+
 				// Cleanup bids AFTER nextRound has been called
 				await this.cleanupRound(auctionId, roundNumber);
 				return;
@@ -102,7 +96,7 @@ export class SettlementService {
 
 			for (let i = 0; i < bids.length; i += 2) {
 				const member = bids[i] as string;
-				const score = parseFloat(bids[i + 1] as string);
+				const _score = parseFloat(bids[i + 1] as string);
 
 				const [userIdStr, timestampStr, amountStr] = member.split(":");
 				const userId = parseInt(userIdStr || "0", 10);
@@ -179,7 +173,7 @@ export class SettlementService {
 
 			// 9. Clear settling flag before moving to next round
 			await updateAuctionState(auctionId, { settling: false });
-			
+
 			// 10. Move to next round (or finish auction)
 			// IMPORTANT: nextRound() will copy bids from current round to new round
 			// We must NOT cleanup bids before nextRound() is called
@@ -188,17 +182,20 @@ export class SettlementService {
 				await auctionService.nextRound(auctionId);
 				logger.info({ auctionId, roundNumber }, "Round settlement completed and moved to next round");
 			} catch (error) {
-				logger.error({ 
-					error, 
-					auctionId, 
-					roundNumber,
-					errorMessage: error instanceof Error ? error.message : String(error),
-					errorStack: error instanceof Error ? error.stack : undefined
-				}, "Error moving to next round after settlement - this is critical, auction may be stuck");
+				logger.error(
+					{
+						error,
+						auctionId,
+						roundNumber,
+						errorMessage: error instanceof Error ? error.message : String(error),
+						errorStack: error instanceof Error ? error.stack : undefined,
+					},
+					"Error moving to next round after settlement - this is critical, auction may be stuck",
+				);
 				// Don't throw - settlement is complete, but log the error for investigation
 				// The auction state might be inconsistent, but we don't want to fail the entire settlement
 			}
-			
+
 			// 11. Cleanup bids AFTER nextRound has copied them to new round
 			// This ensures bids are available for copying before deletion
 			await this.cleanupRound(auctionId, roundNumber);
@@ -217,7 +214,7 @@ export class SettlementService {
 		// Get round by number (not by status, as it may be finished)
 		const { roundService } = await import("@/api/round/roundService");
 		const roundResponse = await roundService.getRoundByAuctionAndNumber(auctionId, roundNumber);
-		
+
 		if (!roundResponse.success || !roundResponse.responseObject) {
 			logger.error({ auctionId, roundNumber }, "Failed to get round for gift assignment");
 			return;
@@ -247,7 +244,14 @@ export class SettlementService {
 
 			if (!giftId) {
 				logger.error(
-					{ userId: winner.userId, auctionId, roundNumber, index: i, winnersCount: winners.length, giftsCount: giftIds.length },
+					{
+						userId: winner.userId,
+						auctionId,
+						roundNumber,
+						index: i,
+						winnersCount: winners.length,
+						giftsCount: giftIds.length,
+					},
 					"No gift available for winner",
 				);
 				continue;
@@ -260,11 +264,7 @@ export class SettlementService {
 
 			try {
 				// 1. Deduct balance
-				const success = await walletService.deductBalance(
-					winner.userId,
-					winner.amount,
-					auctionId,
-				);
+				const success = await walletService.deductBalance(winner.userId, winner.amount, auctionId);
 
 				if (!success) {
 					logger.error(
@@ -293,7 +293,14 @@ export class SettlementService {
 					);
 				} else {
 					logger.error(
-						{ userId: winner.userId, giftId, amount: winner.amount, auctionId, roundNumber, error: ownershipResponse.message },
+						{
+							userId: winner.userId,
+							giftId,
+							amount: winner.amount,
+							auctionId,
+							roundNumber,
+							error: ownershipResponse.message,
+						},
 						"Failed to create gift ownership for winner",
 					);
 				}
@@ -314,10 +321,7 @@ export class SettlementService {
 			try {
 				await walletService.unfreezeBalance(loser.userId, loser.amount, auctionId);
 
-				logger.info(
-					{ userId: loser.userId, amount: loser.amount, auctionId },
-					"Loser balance unfrozen",
-				);
+				logger.info({ userId: loser.userId, amount: loser.amount, auctionId }, "Loser balance unfrozen");
 			} catch (error) {
 				logger.error(
 					{ error, userId: loser.userId, amount: loser.amount, auctionId },
@@ -343,8 +347,6 @@ export class SettlementService {
 			logger.error({ error, auctionId, roundNumber }, "Error cleaning up round");
 		}
 	}
-
 }
 
 export const settlementService = new SettlementService();
-

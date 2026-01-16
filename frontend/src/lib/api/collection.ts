@@ -13,6 +13,7 @@ async function getCollectionEmoji(collectionId: string): Promise<string> {
             return response.responseObject[0].emoji;
         }
     } catch {
+        // Ignore errors when fetching emoji, use default
     }
     return "🎁";
 }

@@ -31,7 +31,7 @@ export class RoundRepository {
 			}
 
 			// Convert gift_ids to ObjectIds
-			const giftObjectIds = data.gift_ids.map(id => {
+			const giftObjectIds = data.gift_ids.map((id) => {
 				try {
 					return new mongoose.Types.ObjectId(id);
 				} catch (error) {
@@ -40,12 +40,15 @@ export class RoundRepository {
 				}
 			});
 
-			logger.info({ 
-				auctionId: data.auction_id, 
-				roundNumber: data.round_number, 
-				giftsCount: giftObjectIds.length,
-				status: data.status || "active"
-			}, "Creating round");
+			logger.info(
+				{
+					auctionId: data.auction_id,
+					roundNumber: data.round_number,
+					giftsCount: giftObjectIds.length,
+					status: data.status || "active",
+				},
+				"Creating round",
+			);
 
 			const round = new Round({
 				auction_id: auctionObjectId,
@@ -53,17 +56,20 @@ export class RoundRepository {
 				gift_ids: giftObjectIds,
 				status: data.status || "active",
 			});
-			
+
 			await round.save();
-			
-			logger.info({ 
-				auctionId: data.auction_id, 
-				roundNumber: data.round_number, 
-				roundId: round._id.toString(), 
-				status: round.status,
-				giftsCount: round.gift_ids.length
-			}, "Round created successfully");
-			
+
+			logger.info(
+				{
+					auctionId: data.auction_id,
+					roundNumber: data.round_number,
+					roundId: round._id.toString(),
+					status: round.status,
+					giftsCount: round.gift_ids.length,
+				},
+				"Round created successfully",
+			);
+
 			return this.toRoundType(round);
 		} catch (error) {
 			logger.error({ error, auctionId: data.auction_id, roundNumber: data.round_number }, "Error creating round");
@@ -87,33 +93,41 @@ export class RoundRepository {
 				return null;
 			}
 
-			logger.info({ auctionId, roundNumber, auctionObjectId: auctionObjectId.toString() }, "Searching for round by auction and number");
+			logger.info(
+				{ auctionId, roundNumber, auctionObjectId: auctionObjectId.toString() },
+				"Searching for round by auction and number",
+			);
 
-			const round = await Round.findOne({ 
-				auction_id: auctionObjectId, 
-				round_number: roundNumber 
+			const round = await Round.findOne({
+				auction_id: auctionObjectId,
+				round_number: roundNumber,
 			});
 
 			if (!round) {
 				// Log for debugging - check all rounds for this auction
-				const allRounds = await Round.find({ auction_id: auctionObjectId }).select("round_number status auction_id _id");
+				const allRounds = await Round.find({ auction_id: auctionObjectId }).select(
+					"round_number status auction_id _id",
+				);
 				logger.warn(
-					{ 
-						auctionId, 
-						roundNumber, 
-						existingRounds: allRounds.map(r => ({ 
-							round_number: r.round_number, 
+					{
+						auctionId,
+						roundNumber,
+						existingRounds: allRounds.map((r) => ({
+							round_number: r.round_number,
 							status: r.status,
 							auction_id: r.auction_id?.toString(),
-							_id: r._id.toString()
-						}))
-					}, 
-					"Round not found for auction. Listing all existing rounds for this auction"
+							_id: r._id.toString(),
+						})),
+					},
+					"Round not found for auction. Listing all existing rounds for this auction",
 				);
 				return null;
 			}
 
-			logger.info({ auctionId, roundNumber, roundId: round._id.toString(), status: round.status }, "Round found successfully");
+			logger.info(
+				{ auctionId, roundNumber, roundId: round._id.toString(), status: round.status },
+				"Round found successfully",
+			);
 			return this.toRoundType(round);
 		} catch (error) {
 			logger.error({ error, auctionId, roundNumber }, "Error in findByAuctionAndRound");
@@ -132,17 +146,20 @@ export class RoundRepository {
 				return null;
 			}
 
-			const round = await Round.findOne({ 
-				auction_id: auctionObjectId, 
-				status: "active" 
+			const round = await Round.findOne({
+				auction_id: auctionObjectId,
+				status: "active",
 			}).sort({ round_number: -1 });
-			
+
 			if (round) {
-				logger.info({ auctionId, roundNumber: round.round_number, roundId: round._id.toString() }, "Current active round found");
+				logger.info(
+					{ auctionId, roundNumber: round.round_number, roundId: round._id.toString() },
+					"Current active round found",
+				);
 			} else {
 				logger.warn({ auctionId }, "No active round found for auction");
 			}
-			
+
 			return round ? this.toRoundType(round) : null;
 		} catch (error) {
 			logger.error({ error, auctionId }, "Error in findCurrentRound");
@@ -203,4 +220,3 @@ export class RoundRepository {
 		};
 	}
 }
-

@@ -41,4 +41,3 @@ roundSchema.index({ auction_id: 1 });
 roundSchema.index({ status: 1 });
 
 export default mongoose.model("Round", roundSchema);
-

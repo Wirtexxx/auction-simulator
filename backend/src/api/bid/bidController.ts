@@ -15,7 +15,7 @@ export const bidController = {
 		}
 
 		const roundNumber = parseInt(round_number as string, 10);
-		if (isNaN(roundNumber)) {
+		if (Number.isNaN(roundNumber)) {
 			return res.status(400).send({
 				success: false,
 				message: "round_number must be a valid number",

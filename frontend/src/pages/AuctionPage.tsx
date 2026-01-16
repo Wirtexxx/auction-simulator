@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getAuctions, type Auction } from "../lib/api/auction";
 import { getCollectionById } from "../lib/api/collection";
 import type { Collection } from "../lib/api/types";

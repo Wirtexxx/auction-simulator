@@ -12,8 +12,8 @@ export async function getMetrics(_req: Request, res: Response): Promise<void> {
 		res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
 		res.status(StatusCodes.OK).send(metrics);
 	} catch (error) {
-		res.status(StatusCodes.INTERNAL_SERVER_ERROR).send(
-			`Error generating metrics: ${error instanceof Error ? error.message : String(error)}`,
-		);
+		res
+			.status(StatusCodes.INTERNAL_SERVER_ERROR)
+			.send(`Error generating metrics: ${error instanceof Error ? error.message : String(error)}`);
 	}
 }

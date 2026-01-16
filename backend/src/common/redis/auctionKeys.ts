@@ -1,8 +1,8 @@
 /**
  * Redis key-space design for auction runtime state
- * 
+ *
  * All keys follow the pattern: auction:{id}:{resource}
- * 
+ *
  * Key Types:
  * - HASH: auction:{id}:state - Auction runtime state
  * - SET: auction:{id}:users - Users who placed bids (atomic lock)
@@ -82,5 +82,3 @@ export function getUserFrozenKeysPattern(userId: number): string {
 export function getAuctionFrozenKeysPattern(auctionId: string): string {
 	return `user:*:frozen:${auctionId}`;
 }
-
-
