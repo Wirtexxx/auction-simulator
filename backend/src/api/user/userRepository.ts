@@ -29,6 +29,16 @@ export class UserRepository {
 		return user ? this.toUserType(user) : null;
 	}
 
+	async updateChatId(id: number, chatId: number): Promise<UserType | null> {
+		const user = await User.findByIdAndUpdate(id, { telegram_chat_id: chatId }, { new: true });
+		return user ? this.toUserType(user) : null;
+	}
+
+	async updateRole(id: number, role: "user" | "admin"): Promise<UserType | null> {
+		const user = await User.findByIdAndUpdate(id, { role }, { new: true });
+		return user ? this.toUserType(user) : null;
+	}
+
 	private toUserType(user: {
 		_id: number;
 		username: string;
@@ -38,6 +48,7 @@ export class UserRepository {
 		language_code?: string | null;
 		is_premium: boolean;
 		role: "user" | "admin";
+		telegram_chat_id?: number | null;
 		created_at: Date;
 	}): UserType {
 		return {
@@ -49,6 +60,7 @@ export class UserRepository {
 			language_code: user.language_code || null,
 			is_premium: user.is_premium,
 			role: user.role,
+			telegram_chat_id: user.telegram_chat_id || null,
 			created_at: user.created_at,
 		};
 	}

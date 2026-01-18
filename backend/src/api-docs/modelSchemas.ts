@@ -20,6 +20,10 @@ export const UserSchema = z
 		language_code: z.string().nullable().optional().openapi({ description: "Language code", example: "en" }),
 		is_premium: z.boolean().openapi({ description: "Is Telegram Premium", example: false }),
 		role: z.enum(["user", "admin"]).openapi({ description: "User role", example: "user" }),
+		telegram_chat_id: z.number().nullable().optional().openapi({
+			description: "Telegram chat ID for notifications",
+			example: 123456789,
+		}),
 		created_at: z.date().openapi({
 			description: "Creation timestamp",
 			example: "2024-01-01T00:00:00.000Z",

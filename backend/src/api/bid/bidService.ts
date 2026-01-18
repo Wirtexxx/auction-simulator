@@ -172,6 +172,17 @@ export class BidService {
 			metricsService.bidPlacedTotal.inc();
 			metricsService.bidAmountSum.inc(amount);
 
+			// Send Telegram notification
+			try {
+				const { telegramBotService } = await import("@/api/telegramBot/telegramBotService");
+				await telegramBotService.sendNotification(
+					userId,
+					`✅ Ваша ставка <b>${amount}</b> принята!`,
+				);
+			} catch (error) {
+				logger.warn({ error, userId }, "Failed to send bid notification");
+			}
+
 			return ServiceResponse.success("Bid placed successfully", bid, StatusCodes.CREATED);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Failed to place bid";
