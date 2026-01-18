@@ -180,19 +180,44 @@ export class AuctionService {
 				throw new Error(`Round number mismatch: expected 1, got ${createdRound.round_number}`);
 			}
 
+			// Clean up any existing Redis keys for this auction before initializing
+			// This ensures no stale data (like settling: true) remains from previous auctions
+			const redis = getRedisClient();
+			const pattern = getAuctionKeysPattern(auctionId);
+			const existingKeys = await redis.keys(pattern);
+			if (existingKeys.length > 0) {
+				logger.info({ auctionId, keysCount: existingKeys.length }, "Cleaning up existing Redis keys before initialization");
+				await redis.del(...existingKeys);
+			}
+
 			// Initialize Redis state for first round AFTER round is created
 			logger.info({ auctionId, roundNumber: 1 }, "Initializing Redis state for first round");
 			await initializeAuctionState(auctionId, 1, auction.round_duration);
 
 			// Verify Redis state was created
-			const state = await import("@/common/redis/auctionState").then((m) => m.getAuctionState(auctionId));
+			const { getAuctionState, updateAuctionState } = await import("@/common/redis/auctionState");
+			const state = await getAuctionState(auctionId);
 			if (!state) {
 				logger.error({ auctionId }, "Redis state not initialized after createRound");
 				throw new Error("Failed to initialize Redis state");
 			}
 
+			// Explicitly ensure settling flag is false (in case of any race condition or stale data)
+			if (state.settling === true) {
+				logger.warn({ auctionId }, "Settling flag was true after initialization, fixing it");
+				await updateAuctionState(auctionId, { settling: false });
+				// Re-fetch state to verify
+				const updatedState = await getAuctionState(auctionId);
+				if (updatedState && updatedState.settling === false) {
+					logger.info({ auctionId }, "Settling flag successfully set to false");
+				} else {
+					logger.error({ auctionId }, "Failed to set settling flag to false");
+					throw new Error("Failed to set settling flag to false");
+				}
+			}
+
 			logger.info(
-				{ auctionId, roundNumber: state.round, roundEndTs: state.round_end_ts },
+				{ auctionId, roundNumber: state.round, roundEndTs: state.round_end_ts, settling: state.settling },
 				"Redis state initialized successfully",
 			);
 

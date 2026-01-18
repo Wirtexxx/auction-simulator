@@ -50,18 +50,20 @@ export async function initializeAuctionStateWithTime(
 		settling: false,
 	};
 
+	// Use HSET to set all fields atomically, ensuring complete overwrite
+	// This guarantees that settling is always set to false on initialization
 	await redis.hset(stateKey, {
 		round: state.round.toString(),
 		status: state.status,
 		round_end_ts: state.round_end_ts.toString(),
-		settling: state.settling ? "1" : "0",
+		settling: "0", // Always explicitly set to "0" (false)
 	});
 
 	// Add round timer to global timeouts ZSET
 	const timeoutsKey = getRoundTimeoutsKey();
 	await redis.zadd(timeoutsKey, roundEndTs, `${auctionId}:${roundNumber}`);
 
-	logger.info({ auctionId, roundNumber, roundEndTs }, "Auction state initialized in Redis");
+	logger.info({ auctionId, roundNumber, roundEndTs, settling: false }, "Auction state initialized in Redis");
 }
 
 /**
