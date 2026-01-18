@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema(
 			required: true,
 			default: "user",
 		},
+		telegram_chat_id: {
+			type: Number,
+			required: false,
+		},
 		created_at: {
 			type: Date,
 			default: Date.now,

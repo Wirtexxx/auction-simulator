@@ -27,6 +27,8 @@ const envSchema = z.object({
 	JWT_SECRET: z.string().min(1).default("your-secret-key-change-in-production"),
 
 	TELEGRAM_BOT_TOKEN: z.string().optional(),
+
+	TELEGRAM_MINI_APP_URL: z.string().url().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

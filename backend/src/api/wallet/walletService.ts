@@ -71,6 +71,7 @@ export class WalletService {
 				return ServiceResponse.failure("Wallet not found", null as unknown as Wallet, StatusCodes.NOT_FOUND);
 			}
 
+			const oldBalance = wallet.balance;
 			const updatedWallet = await this.walletRepository.updateBalance(id, balance);
 			if (!updatedWallet) {
 				return ServiceResponse.failure(
@@ -78,6 +79,20 @@ export class WalletService {
 					null as unknown as Wallet,
 					StatusCodes.INTERNAL_SERVER_ERROR,
 				);
+			}
+
+			// Send Telegram notification if balance increased
+			if (balance > oldBalance) {
+				const increaseAmount = balance - oldBalance;
+				try {
+					const { telegramBotService } = await import("@/api/telegramBot/telegramBotService");
+					await telegramBotService.sendNotification(
+						id,
+						`💰 Ваш баланс пополнен на <b>${increaseAmount}</b>. Текущий баланс: <b>${balance}</b>`,
+					);
+				} catch (error) {
+					logger.warn({ error, userId: id }, "Failed to send balance notification");
+				}
 			}
 
 			return ServiceResponse.success("Wallet balance updated successfully", updatedWallet);

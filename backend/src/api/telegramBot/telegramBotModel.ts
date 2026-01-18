@@ -25,6 +25,27 @@ export const TelegramUpdateSchema = z.object({
 			text: z.string().optional(),
 		})
 		.optional(),
+	callback_query: z
+		.object({
+			id: z.string(),
+			from: z.object({
+				id: z.number(),
+				is_bot: z.boolean().optional(),
+				first_name: z.string(),
+				last_name: z.string().optional(),
+				username: z.string().optional(),
+			}),
+			message: z
+				.object({
+					message_id: z.number(),
+					chat: z.object({
+						id: z.number(),
+					}),
+				})
+				.optional(),
+			data: z.string().optional(),
+		})
+		.optional(),
 	edited_message: z.any().optional(),
 	channel_post: z.any().optional(),
 	edited_channel_post: z.any().optional(),

@@ -291,6 +291,17 @@ export class SettlementService {
 						{ userId: winner.userId, giftId, amount: winner.amount, auctionId, roundNumber },
 						"Gift ownership created successfully for winner",
 					);
+
+					// Send Telegram notification to winner
+					try {
+						const { telegramBotService } = await import("@/api/telegramBot/telegramBotService");
+						await telegramBotService.sendNotification(
+							winner.userId,
+							`🎉 Поздравляем! Вы выиграли в аукционе! Списан <b>${winner.amount}</b>`,
+						);
+					} catch (error) {
+						logger.warn({ error, userId: winner.userId }, "Failed to send winner notification");
+					}
 				} else {
 					logger.error(
 						{
@@ -320,6 +331,17 @@ export class SettlementService {
 		for (const loser of losers) {
 			try {
 				await walletService.unfreezeBalance(loser.userId, loser.amount, auctionId);
+
+				// Send Telegram notification to loser
+				try {
+					const { telegramBotService } = await import("@/api/telegramBot/telegramBotService");
+					await telegramBotService.sendNotification(
+						loser.userId,
+						`💸 Ваши средства возвращены. Разморожено: <b>${loser.amount}</b>`,
+					);
+				} catch (error) {
+					logger.warn({ error, userId: loser.userId }, "Failed to send loser notification");
+				}
 
 				logger.info({ userId: loser.userId, amount: loser.amount, auctionId }, "Loser balance unfrozen");
 			} catch (error) {
