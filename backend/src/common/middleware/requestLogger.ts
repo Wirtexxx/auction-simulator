@@ -84,8 +84,8 @@ const httpLogger = pinoHttp({
 			// Production: add comprehensive request information
 			if (env.isProduction) {
 				// IP address (respects trust proxy)
-				serialized.ip = req.ip || req.socket.remoteAddress || "unknown";
-				serialized.remoteAddress = req.socket.remoteAddress;
+				serialized.ip = req.ip || req.socket?.remoteAddress || "unknown";
+				serialized.remoteAddress = req.socket?.remoteAddress || "unknown";
 
 				// Headers
 				serialized.userAgent = req.get("user-agent") || undefined;
