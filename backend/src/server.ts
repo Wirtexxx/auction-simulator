@@ -54,7 +54,19 @@ app.use(
 );
 
 // CORS configuration
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+// Parse CORS_ORIGIN: support single URL or comma-separated URLs
+const corsOrigins = env.CORS_ORIGIN
+  .split(",")
+  .map(o => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: corsOrigins.length ? corsOrigins : true,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+}));
+
 
 // Body parsing with size limits to prevent DoS attacks
 // Limit JSON payload to 10MB

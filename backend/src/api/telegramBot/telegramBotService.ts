@@ -53,9 +53,9 @@ export class TelegramBotService {
 						logger.info(`[${userId}] Unknown command: ${command}`);
 					}
 					if (chatId) {
-						// Sanitize command to prevent XSS
-						const sanitizedCommand = this.sanitizeForTelegram(command);
-						await this.sendMessage(chatId, `Неизвестная команда: ${sanitizedCommand}. Используйте /start для начала.`);
+						// Don't sanitize command - it's safe (starts with / and contains no HTML)
+						// Just escape any potential HTML in the message itself
+						await this.sendMessage(chatId, `Неизвестная команда: ${command}. Используйте /start для начала.`, false);
 					} else {
 						logger.warn("Cannot send message: chatId is undefined");
 					}
@@ -91,8 +91,8 @@ export class TelegramBotService {
 		// Prepare welcome message
 		const welcomeMessage = `Привет, ${firstName}! 👋\n\nДобро пожаловать в систему аукционов!\n\nИспользуйте Mini App для участия в аукционах.`;
 
-		// Send welcome message
-		await this.sendMessage(chatId, welcomeMessage);
+		// Send welcome message (use HTML for emoji support)
+		await this.sendMessage(chatId, welcomeMessage, true);
 	}
 
 	/**
@@ -116,9 +116,7 @@ export class TelegramBotService {
 	/**
 	 * Send message to Telegram chat
 	 */
-	async sendMessage(chatId: number, text: string): Promise<boolean> {
-		// Sanitize message text to prevent XSS
-		const sanitizedText = this.sanitizeForTelegram(text);
+	async sendMessage(chatId: number, text: string, useHtml: boolean = true): Promise<boolean> {
 		if (!this.botToken) {
 			logger.error("Cannot send message: TELEGRAM_BOT_TOKEN is not configured");
 			return false;
@@ -126,16 +124,25 @@ export class TelegramBotService {
 
 		try {
 			const url = `${TELEGRAM_API_URL}${this.botToken}/sendMessage`;
+			const messageBody: {
+				chat_id: number;
+				text: string;
+				parse_mode?: string;
+			} = {
+				chat_id: chatId,
+				text: useHtml ? this.sanitizeForTelegram(text) : text,
+			};
+
+			if (useHtml) {
+				messageBody.parse_mode = "HTML";
+			}
+
 			const response = await fetch(url, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 				},
-				body: JSON.stringify({
-					chat_id: chatId,
-					text: sanitizedText,
-					parse_mode: "HTML",
-				}),
+				body: JSON.stringify(messageBody),
 			});
 
 			if (!response.ok) {

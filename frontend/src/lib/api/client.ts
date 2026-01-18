@@ -40,6 +40,13 @@ export async function apiRequest<T>(
         const url = buildUrl(endpoint, params);
         const headers = buildHeaders(requiresAuth);
 
+        if (import.meta.env.DEV) {
+            console.log(`🌐 API Request: ${method} ${url}`);
+            if (body && method !== "GET") {
+                console.log("📤 Request body:", body);
+            }
+        }
+
         const fetchOptions: RequestInit = {
             method,
             headers,
@@ -49,7 +56,19 @@ export async function apiRequest<T>(
             fetchOptions.body = JSON.stringify(body);
         }
 
+        if (import.meta.env.DEV) {
+            console.log("📤 Fetch options:", {
+                method: fetchOptions.method,
+                headers: fetchOptions.headers,
+                bodyLength: fetchOptions.body ? (fetchOptions.body as string).length : 0,
+            });
+        }
+
         const response = await fetch(url, fetchOptions);
+
+        if (import.meta.env.DEV) {
+            console.log(`📥 API Response: ${response.status} ${response.statusText}`);
+        }
 
         if (!response.ok) {
             const errorData = await parseErrorResponse(response);
@@ -64,6 +83,9 @@ export async function apiRequest<T>(
         const data = await response.json();
         return data;
     } catch (error) {
+        if (import.meta.env.DEV) {
+            console.error(`❌ API Error for ${method} ${endpoint}:`, error);
+        }
         return handleApiError(
             error,
             `Failed to ${method.toLowerCase()} ${endpoint}`,
