@@ -70,12 +70,10 @@ export class SettlementService {
 				// Mark as settled anyway
 				await redis.set(settledKey, "1");
 
-				// Clear settling flag before moving to next round
-				await updateAuctionState(auctionId, { settling: false });
-
 				// Move to next round (all gifts from this round will be unsold and transferred)
 				// IMPORTANT: nextRound() will copy bids from current round to new round
 				// Even if there are no bids, we should call nextRound() before cleanup
+				// The settling flag will be cleared in nextRound() after successful initialization
 				try {
 					const { auctionService } = await import("@/api/auction/auctionService");
 					await auctionService.nextRound(auctionId);
@@ -83,6 +81,7 @@ export class SettlementService {
 				} catch (error) {
 					logger.error({ error, auctionId, roundNumber }, "Error moving to next round after empty settlement");
 					// Don't throw - settlement is complete
+					// Note: settling flag remains true if nextRound() fails, preventing new bids
 				}
 
 				// Cleanup bids AFTER nextRound has been called
@@ -171,12 +170,10 @@ export class SettlementService {
 				wsServer.broadcastToAuction(auctionId, event);
 			}
 
-			// 9. Clear settling flag before moving to next round
-			await updateAuctionState(auctionId, { settling: false });
-
-			// 10. Move to next round (or finish auction)
+			// 9. Move to next round (or finish auction)
 			// IMPORTANT: nextRound() will copy bids from current round to new round
 			// We must NOT cleanup bids before nextRound() is called
+			// The settling flag will be cleared in nextRound() after successful initialization
 			try {
 				logger.info({ auctionId, roundNumber }, "Calling nextRound after settlement");
 				await auctionService.nextRound(auctionId);
@@ -193,7 +190,7 @@ export class SettlementService {
 					"Error moving to next round after settlement - this is critical, auction may be stuck",
 				);
 				// Don't throw - settlement is complete, but log the error for investigation
-				// The auction state might be inconsistent, but we don't want to fail the entire settlement
+				// Note: settling flag remains true if nextRound() fails, preventing new bids until issue is resolved
 			}
 
 			// 11. Cleanup bids AFTER nextRound has copied them to new round

@@ -363,6 +363,7 @@ export class AuctionService {
 			if (shouldFinish) {
 				logger.info({ auctionId, currentRoundNumber, totalRounds }, "No more gifts available, finishing auction");
 				await this.finish(auctionId);
+				// Don't clear settling flag - auction is finished, all Redis keys will be cleaned up
 				return;
 			}
 
@@ -448,6 +449,7 @@ export class AuctionService {
 				);
 				// If we can't create next round, finish auction
 				await this.finish(auctionId);
+				// Don't clear settling flag - auction is finished, all Redis keys will be cleaned up
 				throw new Error(`Failed to create next round: ${roundResponse.message}`);
 			}
 
@@ -578,6 +580,18 @@ export class AuctionService {
 				logger.warn({ auctionId, nextRoundNumber }, "WebSocket server not available");
 			}
 
+			// Clear settling flag after successful round initialization
+			// This ensures the flag is only cleared when the new round is fully ready to accept bids
+			// Check that auction is still active before clearing flag (in case finish() was called)
+			const { updateAuctionState, getAuctionState } = await import("@/common/redis/auctionState");
+			const currentState = await getAuctionState(auctionId);
+			if (currentState && currentState.status === "active") {
+				await updateAuctionState(auctionId, { settling: false });
+				logger.info({ auctionId, roundNumber: nextRoundNumber }, "Settling flag cleared, new round ready to accept bids");
+			} else {
+				logger.warn({ auctionId, roundNumber: nextRoundNumber, status: currentState?.status }, "Auction is not active, skipping settling flag clear");
+			}
+
 			logger.info({ auctionId, roundNumber: nextRoundNumber }, "Successfully moved to next round");
 		} catch (error) {
 			logger.error(
@@ -585,6 +599,7 @@ export class AuctionService {
 				"Error moving to next round",
 			);
 			// Re-throw to let caller know about the error
+			// Note: settling flag remains true if nextRound() fails, preventing new bids until issue is resolved
 			throw error;
 		}
 	}
