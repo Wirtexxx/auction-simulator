@@ -9,7 +9,19 @@ export const validateRequest = (schema: ZodSchema) => async (req: Request, res: 
 		await schema.parseAsync({ body: req.body, query: req.query, params: req.params });
 		next();
 	} catch (err) {
-		const errors = (err as ZodError).errors.map((e) => {
+		const zodError = err as ZodError;
+		
+		// Log detailed validation errors in development
+		if (process.env.NODE_ENV === "development") {
+			console.error("❌ Validation error:", {
+				errors: zodError.errors,
+				body: req.body,
+				query: req.query,
+				params: req.params,
+			});
+		}
+		
+		const errors = zodError.errors.map((e) => {
 			const fieldPath = e.path.length > 0 ? e.path.join(".") : "root";
 			return `${fieldPath}: ${e.message}`;
 		});
