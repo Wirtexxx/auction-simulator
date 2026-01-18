@@ -82,13 +82,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://backend:8080}
     container_name: auction-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-80}:80"
-    environment:
-      VITE_API_URL: ${VITE_API_URL}
-      BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
     depends_on:
       - backend
     networks:

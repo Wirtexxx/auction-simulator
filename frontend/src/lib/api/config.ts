@@ -1,4 +1,4 @@
-export const API_URL = "/api"
+export const API_URL = import.meta.env.VITE_API_URL;
 if (import.meta.env.DEV) {
     console.log("🔧 API_URL configured as:", API_URL);
 }

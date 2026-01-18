@@ -28,24 +28,26 @@
     # Build stage
     # -------------------------------
     FROM base AS build
+    ARG VITE_API_URL
+    ENV VITE_API_URL=${VITE_API_URL}
     COPY package.json pnpm-lock.yaml ./
     RUN pnpm install --frozen-lockfile
     COPY . .
     RUN pnpm run build
     
     # -------------------------------
-    # Production stage - nginx
+    # Production stage - static file server
     # -------------------------------
-    FROM nginx:alpine AS runner
+    FROM base AS runner
     
     # Copy build output
-    COPY --from=build /app/dist /usr/share/nginx/html
+    COPY --from=build /app/dist ./dist
     
-    # Copy nginx configuration template
-    # Nginx Docker image automatically processes templates in /etc/nginx/templates/
-    # and substitutes environment variables using envsubst
-    COPY nginx.conf /etc/nginx/templates/default.conf.template
+    # Install serve globally
+    RUN npm install -g serve
     
     EXPOSE 80
-    # Default CMD from nginx:alpine handles template processing automatically
+    
+    # Serve static files on port 80
+    CMD ["serve", "-s", "dist", "-l", "80"]
     
