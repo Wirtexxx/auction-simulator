@@ -7,6 +7,7 @@ import pinoHttp from "pino-http";
 import { env } from "@/common/utils/envConfig";
 import type { AuthenticatedRequest } from "@/common/middleware/authenticate";
 
+// Logger instance
 const logger = pino({
 	level: env.isProduction ? "info" : "debug",
 	transport: env.isProduction
@@ -18,29 +19,27 @@ const logger = pino({
 					translateTime: "HH:MM:ss Z",
 					ignore: "pid,hostname",
 				},
-			},
-	// Production: structured JSON logging
-	...(env.isProduction && {
-		formatters: {
-			level: (label) => {
-				return { level: label };
-			},
-		},
-		timestamp: pino.stdTimeFunctions.isoTime,
-	}),
+		  },
+	formatters: env.isProduction
+		? {
+				level: (label) => ({ level: label }),
+		  }
+		: undefined,
+	timestamp: env.isProduction ? pino.stdTimeFunctions.isoTime : undefined,
 });
 
+// Determine log level based on status code
 const getLogLevel = (status: number) => {
 	if (status >= StatusCodes.INTERNAL_SERVER_ERROR) return "error";
 	if (status >= StatusCodes.BAD_REQUEST) return "warn";
 	return "info";
 };
 
+// Add request ID
 const addRequestId = (req: Request, res: Response, next: NextFunction) => {
 	const existingId = req.headers["x-request-id"] as string;
 	const requestId = existingId || randomUUID();
 
-	// Set for downstream use
 	req.headers["x-request-id"] = requestId;
 	res.setHeader("X-Request-Id", requestId);
 
@@ -50,22 +49,36 @@ const addRequestId = (req: Request, res: Response, next: NextFunction) => {
 // Track response time and size
 const trackResponseMetrics = (req: Request, res: Response, next: NextFunction) => {
 	const startTime = Date.now();
-	const originalSend = res.send;
+	const originalSend = res.send.bind(res);
 
-	res.send = function (body) {
+	res.send = function (body: any) {
 		const responseTime = Date.now() - startTime;
 		const responseSize = typeof body === "string" ? Buffer.byteLength(body, "utf8") : 0;
 
-		// Store metrics in res.locals for logging
+		res.locals = res.locals || {};
 		res.locals.responseTime = responseTime;
 		res.locals.responseSize = responseSize;
 
-		return originalSend.call(this, body);
+		return originalSend(body);
 	};
 
 	next();
 };
 
+// Capture response body (only for dev)
+const captureResponseBody = (_req: Request, res: Response, next: NextFunction) => {
+	if (!env.isProduction) {
+		const originalSend = res.send.bind(res);
+		res.send = function (body: any) {
+			res.locals = res.locals || {};
+			res.locals.responseBody = body;
+			return originalSend(body);
+		};
+	}
+	next();
+};
+
+// Pino HTTP logger
 const httpLogger = pinoHttp({
 	logger,
 	genReqId: (req) => req.headers["x-request-id"] as string,
@@ -73,139 +86,66 @@ const httpLogger = pinoHttp({
 	customSuccessMessage: (req) => `${req.method} ${req.url} completed`,
 	customErrorMessage: (_req, res) => `Request failed with status code: ${res.statusCode}`,
 	serializers: {
-		req: (req) => {
+		req: (req: Request) => {
+			const authReq = req as AuthenticatedRequest;
 			const serialized: Record<string, unknown> = {
 				method: req.method,
 				url: req.url,
 				path: req.path,
-				id: req.id,
+				id: req.headers["x-request-id"] || undefined,
+				ip: req.ip || req.socket?.remoteAddress || "unknown",
 			};
 
-			// Production: add comprehensive request information
-			if (env.isProduction) {
-				// IP address (respects trust proxy)
-				serialized.ip = req.ip || req.socket?.remoteAddress || "unknown";
-				serialized.remoteAddress = req.socket?.remoteAddress || "unknown";
+			// Add headers
+			if (req.headers) {
+				serialized.userAgent = req.headers["user-agent"];
+				serialized.referer = req.headers.referer || req.headers.referrer;
+				serialized.origin = req.headers.origin;
+				serialized.hasAuth = !!req.headers.authorization;
+			}
 
-				// Headers
-				serialized.userAgent = req.get("user-agent") || undefined;
-				serialized.referer = req.get("referer") || undefined;
-				serialized.origin = req.get("origin") || undefined;
+			// Add query
+			if (req.query && Object.keys(req.query).length > 0) {
+				serialized.query = req.query;
+			}
 
-				// Query parameters
-				if (req.query && Object.keys(req.query).length > 0) {
-					serialized.query = req.query;
-				}
+			// Add sanitized body
+			if (req.body && Object.keys(req.body).length > 0) {
+				const bodyCopy = { ...req.body };
+				delete bodyCopy.password;
+				delete bodyCopy.token;
+				serialized.body = bodyCopy;
+			}
 
-				// User information (if authenticated)
-				const authReq = req as AuthenticatedRequest;
-				if (authReq.user) {
-					serialized.user = {
-						id: authReq.user._id,
-						role: authReq.user.role,
-					};
-				}
-
-				// Request body (sanitized for sensitive data)
-				if (req.body && Object.keys(req.body).length > 0) {
-					const sanitizedBody = { ...req.body };
-					// Remove sensitive fields
-					if (sanitizedBody.password) delete sanitizedBody.password;
-					if (sanitizedBody.token) delete sanitizedBody.token;
-					if (sanitizedBody.initData && typeof sanitizedBody.initData === "string") {
-						// Log only initData length, not the full content
-						sanitizedBody.initData = `[REDACTED: ${sanitizedBody.initData.length} chars]`;
-					}
-					serialized.body = sanitizedBody;
-				}
-
-				// Authorization header (only presence, not the token itself)
-				if (req.headers.authorization) {
-					serialized.hasAuth = true;
-					const authHeader = req.headers.authorization;
-					if (authHeader.startsWith("Bearer ")) {
-						const token = authHeader.substring(7);
-						serialized.authTokenLength = token.length;
-					}
-				}
-			} else {
-				// Development: more detailed logging
-				if (req.body && Object.keys(req.body).length > 0) {
-					serialized.body = req.body;
-				}
-
-				if (req.headers.authorization) {
-					serialized.auth = req.headers.authorization;
-				}
-
-				if (req.query && Object.keys(req.query).length > 0) {
-					serialized.query = req.query;
-				}
-
-				const authReq = req as AuthenticatedRequest;
-				if (authReq.user) {
-					serialized.user = {
-						id: authReq.user._id,
-						role: authReq.user.role,
-					};
-				}
+			// Add user info
+			if (authReq.user) {
+				serialized.user = { id: authReq.user._id, role: authReq.user.role };
 			}
 
 			return serialized;
 		},
-		res: (res) => {
+		res: (res: Response) => {
 			const serialized: Record<string, unknown> = {
 				statusCode: res.statusCode,
 			};
-
-			// Production: add response metrics
-			if (env.isProduction && res.locals) {
-				if (res.locals.responseTime !== undefined) {
-					serialized.responseTime = `${res.locals.responseTime}ms`;
-				}
-				if (res.locals.responseSize !== undefined) {
-					serialized.responseSize = `${res.locals.responseSize} bytes`;
-				}
+			if (res.locals) {
+				if (res.locals.responseTime !== undefined) serialized.responseTime = `${res.locals.responseTime}ms`;
+				if (res.locals.responseSize !== undefined) serialized.responseSize = `${res.locals.responseSize} bytes`;
 			}
-
 			return serialized;
 		},
 	},
-	// Custom attributes for production logging
-	customProps: (req: Request, res: Response) => {
-		if (!env.isProduction) {
-			return {};
+	customProps: (_req: Request, res: Response) => {
+		const props: Record<string, unknown> = {};
+		if (env.isProduction && res.locals) {
+			if (res.locals.responseTime !== undefined) props.responseTime = res.locals.responseTime;
+			if (res.locals.responseSize !== undefined) props.responseSize = res.locals.responseSize;
 		}
-
-		const props: Record<string, unknown> = {
-			timestamp: new Date().toISOString(),
-		};
-
-		// Add response time if available
-		if (res.locals.responseTime !== undefined) {
-			props.responseTime = res.locals.responseTime;
-		}
-
-		// Add response size if available
-		if (res.locals.responseSize !== undefined) {
-			props.responseSize = res.locals.responseSize;
-		}
-
 		return props;
 	},
 });
 
-const captureResponseBody = (_req: Request, res: Response, next: NextFunction) => {
-	if (!env.isProduction) {
-		const originalSend = res.send;
-		res.send = function (body) {
-			res.locals.responseBody = body;
-			return originalSend.call(this, body);
-		};
-	}
-	next();
-};
-
+// Export middleware array
 const requestLoggerMiddleware: RequestHandler[] = [
 	addRequestId,
 	trackResponseMetrics,
