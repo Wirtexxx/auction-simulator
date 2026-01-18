@@ -26,9 +26,15 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@7.3.1(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2))
+      '@tma.js/bridge':
+        specifier: ^2.2.2
+        version: 2.2.2(typescript@5.9.3)
       '@tma.js/sdk':
         specifier: ^3.1.6
         version: 3.1.6(typescript@5.9.3)
+      '@tma.js/sdk-react':
+        specifier: ^3.0.15
+        version: 3.0.15(@types/react@19.2.7)(react@19.2.3)(typescript@5.9.3)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -981,6 +987,15 @@ packages:
 
   '@tma.js/bridge@2.2.2':
     resolution: {integrity: sha512-dL7iZzYP/VC4/qJYSXPI1GXLGP3gLTp10L7iGY6PcjB2F4xXS2JnHUoYvD2DgQG1ogjE93zWnVIMN7inx1v+Eg==}
+
+  '@tma.js/sdk-react@3.0.15':
+    resolution: {integrity: sha512-HsgqPINSBK87NIRZ+ZDol07QPhSQ3GOTofyZEH0xoaQjZWb9wVxUXwECa5ozRUdzWZI+Mgx8oD1pzrjyNkDjFA==}
+    peerDependencies:
+      '@types/react': ^17.0.0 || ^18.0.0 || ^19.0.0
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@tma.js/sdk@3.1.6':
     resolution: {integrity: sha512-NENkQa7G5N9kwbL20ErUMO9Fukxl9eVhcJ439PbCg2WYMk/x9oNbx2DhEzhX4xM718zSjYejmSj1oXCKk0PxYA==}
@@ -3448,6 +3463,15 @@ snapshots:
       fp-ts: 2.16.11
       mitt: 3.0.1
       valibot: 1.2.0(typescript@5.9.3)
+    transitivePeerDependencies:
+      - typescript
+
+  '@tma.js/sdk-react@3.0.15(@types/react@19.2.7)(react@19.2.3)(typescript@5.9.3)':
+    dependencies:
+      '@tma.js/sdk': 3.1.6(typescript@5.9.3)
+      react: 19.2.3
+    optionalDependencies:
+      '@types/react': 19.2.7
     transitivePeerDependencies:
       - typescript
 

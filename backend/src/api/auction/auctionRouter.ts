@@ -119,9 +119,7 @@ auctionRegistry.registerPath({
 		params: FinishAuctionSchema.shape.params,
 	},
 	responses: createApiResponse(AuctionSchema, "Auction finished successfully"),
-});
-
-auctionRouter.post(
+});auctionRouter.post(
 	"/:id/finish",
 	authenticate,
 	requireAdmin,

@@ -1,5 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 import jwt from "jsonwebtoken";
+import type { InitData } from "@tma.js/init-data-node";
 
 import { ServiceResponse } from "@/common/models/serviceResponse";
 import { env } from "@/common/utils/envConfig";
@@ -28,13 +29,34 @@ export class UserService {
 			}
 
 			// Validate Telegram init data
-			const initData = validateTelegramInitData(initDataRaw);
+			let initData: InitData | null = null;
+			try {
+				initData = validateTelegramInitData(initDataRaw);
+			} catch (validationError) {
+				if (env.isDevelopment) {
+					console.error("❌ Init data validation threw an error:", validationError);
+					if (validationError instanceof Error) {
+						console.error("❌ Error message:", validationError.message);
+						console.error("❌ Error stack:", validationError.stack);
+					}
+				}
+				const errorMessage = validationError instanceof Error 
+					? validationError.message 
+					: "Invalid or expired Telegram init data";
+				return ServiceResponse.failure(
+					errorMessage,
+					null as unknown as AuthResponse,
+					StatusCodes.UNAUTHORIZED,
+				);
+			}
+			
 			if (!initData || !initData.user) {
 				if (env.isDevelopment) {
 					console.error("❌ Init data validation failed:", {
 						hasInitData: !!initData,
 						hasUser: !!initData?.user,
 						initDataRawLength: initDataRaw.length,
+						initDataRawPreview: initDataRaw.substring(0, 200),
 					});
 				}
 				return ServiceResponse.failure(

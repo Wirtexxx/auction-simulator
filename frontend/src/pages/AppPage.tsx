@@ -13,7 +13,10 @@ export function AppPage() {
 
   useEffect(() => {
     if (!isAuthenticated()) {
-      navigate('/auth');
+      if (import.meta.env.DEV) {
+        console.log("🔒 AppPage: user not authenticated, redirecting to /auth");
+      }
+      navigate('/auth', { replace: true });
       return;
     }
 
@@ -22,7 +25,10 @@ export function AppPage() {
       // Use setTimeout to avoid synchronous setState in effect
       setTimeout(() => setUser(userData), 0);
     } else {
-      navigate('/auth');
+      if (import.meta.env.DEV) {
+        console.log("🔒 AppPage: user data not found, redirecting to /auth");
+      }
+      navigate('/auth', { replace: true });
     }
   }, [navigate]);
 

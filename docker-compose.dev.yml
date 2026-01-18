@@ -61,7 +61,7 @@ services:
         build:
             context: ./backend
             dockerfile: Dockerfile
-            target: build
+            target: dev
         container_name: auction-backend-dev
         restart: unless-stopped
         ports:
@@ -78,7 +78,7 @@ services:
             COMMON_RATE_LIMIT_MAX_REQUESTS: ${COMMON_RATE_LIMIT_MAX_REQUESTS:-1000}
             COMMON_RATE_LIMIT_WINDOW_MS: ${COMMON_RATE_LIMIT_WINDOW_MS:-1000}
             TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8419862311:AAEvIf4CtNkK-679pFb3B-JLUz4qQXiYdo4}
-        command: pnpm run start:dev
+        command: sh -c "pnpm install --frozen-lockfile && pnpm run start:dev"
         volumes:
             - ./backend:/app
             - /app/node_modules
