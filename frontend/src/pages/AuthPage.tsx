@@ -1,137 +1,68 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback } from "react";
 import { useRawInitData, useLaunchParams } from "@tma.js/sdk-react";
 import { retrieveLaunchParams } from "@tma.js/sdk";
-import { authenticate } from "../lib/api/auth";
-import { saveAuth } from "../lib/authStorage";
-import { waitForMockEnvironment, isMockModeEnabled } from "../lib/mockEnv";
+import { isMockModeEnabled } from "../lib/mockEnv";
 import { getTelegramInitData } from "../lib/telegramUtils";
+import { useAuthentication } from "../hooks/useAuthentication";
+
+// Get initDataRaw for mock mode
+function getMockInitDataRaw(): string | undefined {
+  return getTelegramInitData();
+}
+
+// Get initDataRaw for real Telegram mode
+function getTelegramInitDataRaw(
+  initDataRaw: string | undefined,
+  launchParams: unknown
+): string | undefined {
+  // Try from useRawInitData hook first
+  if (initDataRaw && typeof initDataRaw === "string" && initDataRaw.length > 0) {
+    return initDataRaw;
+  }
+
+  // Try from useLaunchParams hook
+  if (launchParams && typeof launchParams === "object" && launchParams !== null && "initDataRaw" in launchParams) {
+    const launchParamsInitData = (launchParams as { initDataRaw?: unknown }).initDataRaw;
+    if (typeof launchParamsInitData === "string" && launchParamsInitData.length > 0) {
+      return launchParamsInitData;
+    }
+  }
+
+  // Try from retrieveLaunchParams as fallback
+  try {
+    const params = retrieveLaunchParams();
+    const paramsInitData = params.initDataRaw;
+    if (typeof paramsInitData === "string" && paramsInitData.length > 0) {
+      return paramsInitData;
+    }
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn("⚠️ Failed to retrieve launch params:", e);
+    }
+  }
+
+  return undefined;
+}
 
 // Component for mock mode (doesn't use SDK hooks that fail)
 function AuthPageMock() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    (async () => {
-      try {
-        if (import.meta.env.DEV) {
-          console.log("🔍 AuthPage (Mock): Starting authentication...");
-        }
-
-        await waitForMockEnvironment();
-
-        // Get initData from localStorage/URL (mock mode)
-        const initDataRaw = getTelegramInitData();
-
-        if (!initDataRaw) {
-          throw new Error("Telegram init data not available in mock mode. Make sure VITE_MOCK_TELEGRAM=true is set.");
-        }
-
-        if (import.meta.env.DEV) {
-          console.log("✅ AuthPage (Mock): initDataRaw available, calling authenticate...");
-        }
-
-        const response = await authenticate(initDataRaw);
-
-        if (!response.success || !response.responseObject) {
-          throw new Error(response.message || "Authentication failed");
-        }
-
-        saveAuth(
-          response.responseObject.token,
-          response.responseObject.user
-        );
-
-        navigate("/app/auction", { replace: true });
-      } catch (e) {
-        if (e instanceof Error) {
-          setError(e.message);
-        } else {
-          setError("Authentication error");
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [navigate]);
+  const getInitDataRaw = useCallback(() => getMockInitDataRaw(), []);
+  const { loading, error } = useAuthentication({ getInitDataRaw, mode: "mock" });
 
   return <AuthPageUI loading={loading} error={error} />;
 }
 
 // Component for real Telegram mode (uses SDK hooks)
 function AuthPageTelegram() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
   const initDataRaw = useRawInitData();
   const launchParams = useLaunchParams();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        if (import.meta.env.DEV) {
-          console.log("🔍 AuthPage (Telegram): Starting authentication...");
-        }
+  const getInitDataRaw = useCallback(
+    () => getTelegramInitDataRaw(initDataRaw, launchParams),
+    [initDataRaw, launchParams]
+  );
 
-        await waitForMockEnvironment();
-
-        // Get initDataRaw with fallback
-        let finalInitDataRaw: string | undefined = initDataRaw;
-
-        if (!finalInitDataRaw && launchParams?.initDataRaw) {
-          const launchParamsInitData = launchParams.initDataRaw;
-          if (typeof launchParamsInitData === "string" && launchParamsInitData.length > 0) {
-            finalInitDataRaw = launchParamsInitData;
-          }
-        }
-
-        if (!finalInitDataRaw) {
-          try {
-            const params = retrieveLaunchParams();
-            const paramsInitData = params.initDataRaw;
-            if (typeof paramsInitData === "string" && paramsInitData.length > 0) {
-              finalInitDataRaw = paramsInitData;
-            }
-          } catch (e) {
-            if (import.meta.env.DEV) {
-              console.warn("⚠️ Failed to retrieve launch params:", e);
-            }
-          }
-        }
-
-        if (!finalInitDataRaw) {
-          throw new Error("Telegram init data not available. Please open this app from Telegram Mini App.");
-        }
-
-        if (import.meta.env.DEV) {
-          console.log("✅ AuthPage (Telegram): initDataRaw available, calling authenticate...");
-        }
-
-        const response = await authenticate(finalInitDataRaw);
-
-        if (!response.success || !response.responseObject) {
-          throw new Error(response.message || "Authentication failed");
-        }
-
-        saveAuth(
-          response.responseObject.token,
-          response.responseObject.user
-        );
-
-        navigate("/app/auction", { replace: true });
-      } catch (e) {
-        if (e instanceof Error) {
-          setError(e.message);
-        } else {
-          setError("Authentication error");
-        }
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [navigate, initDataRaw, launchParams]);
+  const { loading, error } = useAuthentication({ getInitDataRaw, mode: "telegram" });
 
   return <AuthPageUI loading={loading} error={error} />;
 }
