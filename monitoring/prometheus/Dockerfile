@@ -10,8 +10,8 @@ COPY --from=prometheus-base /bin/prometheus /bin/prometheus
 COPY --from=prometheus-base /etc/prometheus /etc/prometheus
 
 # наш entrypoint будет генерировать /etc/prometheus/prom.yml
-# Note: Build context is ./monitoring, so path is relative to that
-COPY prometheus/entrypoint.sh /entrypoint.sh
+# Copy entrypoint script (works both from ./monitoring and ./monitoring/prometheus contexts)
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 9090
