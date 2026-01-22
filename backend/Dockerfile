@@ -16,7 +16,7 @@
     FROM base AS dev
     COPY package.json pnpm-lock.yaml ./
     # Install all dependencies (including dev)
-    RUN pnpm install --frozen-lockfile --ignore-scripts
+    RUN pnpm install --frozen-lockfile
     # Copy source code
     COPY . .
     # Expose port for dev server

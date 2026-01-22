@@ -18,6 +18,12 @@ export interface GetAuctionsFilters {
 
 export class AuctionRepository {
 	async create(data: CreateAuctionData): Promise<AuctionType> {
+		// Status must be explicitly provided - don't default to "active"
+		// This ensures auctions are only marked "active" after Redis state is initialized
+		if (!data.status) {
+			throw new Error("Auction status must be explicitly provided");
+		}
+		
 		const auction = new Auction({
 			collection_id: data.collection_id,
 			round_duration: data.round_duration,
@@ -25,7 +31,7 @@ export class AuctionRepository {
 			total_rounds: data.total_rounds || 0,
 			current_round_number: 1,
 			current_round_started_at: new Date(),
-			status: data.status || "active",
+			status: data.status,
 		});
 		await auction.save();
 		return this.toAuctionType(auction);
@@ -70,6 +76,12 @@ export class AuctionRepository {
 	async finishAuction(auctionId: string): Promise<void> {
 		await Auction.findByIdAndUpdate(auctionId, {
 			status: "finished",
+		});
+	}
+
+	async updateStatus(auctionId: string, status: "active" | "finished"): Promise<void> {
+		await Auction.findByIdAndUpdate(auctionId, {
+			status,
 		});
 	}
 

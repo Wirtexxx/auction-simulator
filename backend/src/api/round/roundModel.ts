@@ -55,3 +55,14 @@ export const GetRoundsSchema = z
 			.optional(),
 	})
 	.openapi({ title: "GetRounds" });
+
+export const GetCurrentRoundSchema = z
+	.object({
+		query: z.object({
+			auction_id: commonValidations.mongoId.openapi({
+				param: { name: "auction_id", in: "query" },
+				description: "Auction ID to get current round for",
+			}),
+		}),
+	})
+	.openapi({ title: "GetCurrentRound" });

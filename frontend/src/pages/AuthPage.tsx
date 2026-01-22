@@ -1,116 +1,112 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRawInitData, useLaunchParams } from "@tma.js/sdk-react";
 import { retrieveLaunchParams } from "@tma.js/sdk";
 import { authenticate } from "../lib/api/auth";
 import { saveAuth } from "../lib/authStorage";
-import { waitForMockEnvironment } from "../lib/mockEnv";
+import { waitForMockEnvironment, isMockModeEnabled } from "../lib/mockEnv";
+import { getTelegramInitData } from "../lib/telegramUtils";
 
-export function AuthPage() {
+// Component for mock mode (doesn't use SDK hooks that fail)
+function AuthPageMock() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (import.meta.env.DEV) {
+          console.log("🔍 AuthPage (Mock): Starting authentication...");
+        }
+
+        await waitForMockEnvironment();
+
+        // Get initData from localStorage/URL (mock mode)
+        const initDataRaw = getTelegramInitData();
+
+        if (!initDataRaw) {
+          throw new Error("Telegram init data not available in mock mode. Make sure VITE_MOCK_TELEGRAM=true is set.");
+        }
+
+        if (import.meta.env.DEV) {
+          console.log("✅ AuthPage (Mock): initDataRaw available, calling authenticate...");
+        }
+
+        const response = await authenticate(initDataRaw);
+
+        if (!response.success || !response.responseObject) {
+          throw new Error(response.message || "Authentication failed");
+        }
+
+        saveAuth(
+          response.responseObject.token,
+          response.responseObject.user
+        );
+
+        navigate("/app/auction", { replace: true });
+      } catch (e) {
+        if (e instanceof Error) {
+          setError(e.message);
+        } else {
+          setError("Authentication error");
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [navigate]);
+
+  return <AuthPageUI loading={loading} error={error} />;
+}
+
+// Component for real Telegram mode (uses SDK hooks)
+function AuthPageTelegram() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const initDataRaw = useRawInitData();
   const launchParams = useLaunchParams();
 
-  // Fallback: try to get initDataRaw from retrieveLaunchParams if useRawInitData returns undefined
-  const getInitDataRaw = useCallback((): string | undefined => {
-    if (initDataRaw && typeof initDataRaw === "string") {
-      return initDataRaw;
-    }
-    
-    // Try to get from launchParams
-    if (launchParams?.initDataRaw && typeof launchParams.initDataRaw === "string") {
-      return launchParams.initDataRaw;
-    }
-
-    // Try to get directly from retrieveLaunchParams (synchronous fallback)
-    try {
-      const params = retrieveLaunchParams();
-      if (params.initDataRaw && typeof params.initDataRaw === "string") {
-        return params.initDataRaw;
-      }
-    } catch (e) {
-      if (import.meta.env.DEV) {
-        console.warn("⚠️ Failed to retrieve launch params:", e);
-      }
-    }
-
-    return undefined;
-  }, [initDataRaw, launchParams]);
-
   useEffect(() => {
     (async () => {
       try {
         if (import.meta.env.DEV) {
-          console.log("🔍 AuthPage: Starting authentication...");
-          console.log("🔍 AuthPage: initDataRaw from useRawInitData():", initDataRaw ? `${initDataRaw.substring(0, 100)}...` : "undefined");
-          console.log("🔍 AuthPage: launchParams:", launchParams);
+          console.log("🔍 AuthPage (Telegram): Starting authentication...");
         }
 
         await waitForMockEnvironment();
 
-        if (import.meta.env.DEV) {
-          console.log("🔍 AuthPage: Mock environment ready");
-        }
-
         // Get initDataRaw with fallback
-        const finalInitDataRaw = getInitDataRaw();
+        let finalInitDataRaw: string | undefined = initDataRaw;
 
-        if (import.meta.env.DEV) {
-          console.log("🔍 AuthPage: finalInitDataRaw:", finalInitDataRaw ? `${finalInitDataRaw.substring(0, 100)}...` : "undefined");
+        if (!finalInitDataRaw && launchParams?.initDataRaw) {
+          const launchParamsInitData = launchParams.initDataRaw;
+          if (typeof launchParamsInitData === "string" && launchParamsInitData.length > 0) {
+            finalInitDataRaw = launchParamsInitData;
+          }
         }
 
-        // Wait for initDataRaw to be available
         if (!finalInitDataRaw) {
-          if (import.meta.env.DEV) {
-            console.warn("⚠️ AuthPage: initDataRaw is undefined, trying fallback...");
-          }
-          // In mock mode, try to get from localStorage as fallback
-          if (import.meta.env.DEV) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const isMock = urlParams.get("mock") === "true" || import.meta.env.VITE_MOCK_TELEGRAM === "true";
-            if (isMock) {
-              if (import.meta.env.DEV) {
-                console.log("🔍 AuthPage: Mock mode detected, checking localStorage...");
-              }
-              const stored = localStorage.getItem("tma-js-sdk-launch-params");
-              if (stored) {
-                try {
-                  const data = JSON.parse(stored);
-                  if (data.tgWebAppData && typeof data.tgWebAppData === "string") {
-                    if (import.meta.env.DEV) {
-                      console.log("✅ AuthPage: Found initData in localStorage, authenticating...");
-                    }
-                    const response = await authenticate(data.tgWebAppData);
-                    if (response.success && response.responseObject) {
-                      saveAuth(
-                        response.responseObject.token,
-                        response.responseObject.user
-                      );
-                      navigate("/app/auction", { replace: true });
-                      return;
-                    }
-                  }
-                } catch (e) {
-                  if (import.meta.env.DEV) {
-                    console.error("❌ AuthPage: Error parsing localStorage data:", e);
-                  }
-                  // Fall through to error
-                }
-              } else {
-                if (import.meta.env.DEV) {
-                  console.warn("⚠️ AuthPage: localStorage is empty");
-                }
-              }
+          try {
+            const params = retrieveLaunchParams();
+            const paramsInitData = params.initDataRaw;
+            if (typeof paramsInitData === "string" && paramsInitData.length > 0) {
+              finalInitDataRaw = paramsInitData;
+            }
+          } catch (e) {
+            if (import.meta.env.DEV) {
+              console.warn("⚠️ Failed to retrieve launch params:", e);
             }
           }
+        }
+
+        if (!finalInitDataRaw) {
           throw new Error("Telegram init data not available. Please open this app from Telegram Mini App.");
         }
 
         if (import.meta.env.DEV) {
-          console.log("✅ AuthPage: initDataRaw available, calling authenticate...");
-          console.log("📤 AuthPage: Sending initData (length):", finalInitDataRaw.length);
+          console.log("✅ AuthPage (Telegram): initDataRaw available, calling authenticate...");
         }
 
         const response = await authenticate(finalInitDataRaw);
@@ -135,8 +131,13 @@ export function AuthPage() {
         setLoading(false);
       }
     })();
-  }, [navigate, initDataRaw, launchParams, getInitDataRaw]);
+  }, [navigate, initDataRaw, launchParams]);
 
+  return <AuthPageUI loading={loading} error={error} />;
+}
+
+// Shared UI component
+function AuthPageUI({ loading, error }: { loading: boolean; error: string | null }) {
   return (
     <div className="flex items-center justify-center h-screen bg-[#17212b]">
       <div className="bg-[#232e3c] rounded-lg p-8 max-w-md w-full border border-[rgba(255,255,255,0.1)]">
@@ -170,4 +171,15 @@ export function AuthPage() {
       </div>
     </div>
   );
+}
+
+// Main exported component - conditionally renders based on mock mode
+export function AuthPage() {
+  const isMock = isMockModeEnabled();
+  
+  if (isMock) {
+    return <AuthPageMock />;
+  }
+  
+  return <AuthPageTelegram />;
 }

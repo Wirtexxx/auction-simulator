@@ -19,7 +19,7 @@ export function getTelegramInitData(): string {
       return initDataRaw;
     }
   } catch {
-    // Ignore errors from retrieveLaunchParams
+    // Ignore errors from retrieveLaunchParams, try fallback
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,11 +29,29 @@ export function getTelegramInitData(): string {
   }
 
   if (isMockMode()) {
-    const stored = localStorage.getItem('telegram:initData');
-    if (typeof stored === 'string' && stored.length > 0) {
-      return stored;
+    // Try to get from localStorage (saved by initMockEnvironment)
+    try {
+      const stored = localStorage.getItem('tma-js-sdk-launch-params');
+      if (stored) {
+        const data = JSON.parse(stored);
+        if (data.tgWebAppData && typeof data.tgWebAppData === 'string' && data.tgWebAppData.length > 0) {
+          return data.tgWebAppData;
+        }
+      }
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        console.warn('⚠️ Failed to get initData from localStorage:', e);
+      }
     }
-    throw new Error('Mock mode enabled but initData is missing');
+    
+    // Fallback: try to get from URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const tgWebAppData = urlParams.get('tgWebAppData');
+    if (tgWebAppData && tgWebAppData.length > 0) {
+      return tgWebAppData;
+    }
+    
+    throw new Error('Mock mode enabled but initData is missing. Make sure initMockEnvironment() was called.');
   }
 
   throw new Error('Telegram initData not available');

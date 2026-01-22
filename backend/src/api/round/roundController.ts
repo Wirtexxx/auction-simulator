@@ -22,14 +22,6 @@ export const roundController = {
 
 	getCurrentRound: async (req: Request, res: Response) => {
 		const { auction_id } = req.query;
-		if (!auction_id) {
-			return res.status(400).send({
-				success: false,
-				message: "auction_id is required",
-				responseObject: null,
-				statusCode: 400,
-			});
-		}
 		const serviceResponse = await roundService.getCurrentRound(auction_id as string);
 		return res.status(serviceResponse.statusCode).send(serviceResponse);
 	},

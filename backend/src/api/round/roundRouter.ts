@@ -6,7 +6,7 @@ import { RoundSchema } from "@/api-docs/modelSchemas";
 import { createApiResponse } from "@/api-docs/openAPIResponseBuilders";
 import { validateRequest } from "@/common/utils/httpHandlers";
 import { roundController } from "./roundController";
-import { GetRoundSchema, GetRoundsSchema } from "./roundModel";
+import { GetCurrentRoundSchema, GetRoundSchema, GetRoundsSchema } from "./roundModel";
 
 export const roundRegistry = new OpenAPIRegistry();
 export const roundRouter: Router = express.Router();
@@ -50,22 +50,17 @@ roundRegistry.registerPath({
 	responses: createApiResponse(RoundSchema, "Round retrieved successfully"),
 });
 
-roundRouter.get("/:id", validateRequest(GetRoundSchema), roundController.getRound);
-
-const GetCurrentRoundQuerySchema = z.object({
-	auction_id: z
-		.string()
-		.openapi({ param: { name: "auction_id", in: "query" }, description: "Auction ID to get current round for" }),
-});
-
+// IMPORTANT: /current must be defined BEFORE /:id to avoid route conflicts
 roundRegistry.registerPath({
 	method: "get",
 	path: "/rounds/current",
 	tags: ["Round"],
 	request: {
-		query: GetCurrentRoundQuerySchema,
+		query: GetCurrentRoundSchema.shape.query,
 	},
 	responses: createApiResponse(RoundSchema.nullable(), "Current round retrieved successfully"),
 });
 
-roundRouter.get("/current", roundController.getCurrentRound);
+roundRouter.get("/current", validateRequest(GetCurrentRoundSchema), roundController.getCurrentRound);
+
+roundRouter.get("/:id", validateRequest(GetRoundSchema), roundController.getRound);
