@@ -100,8 +100,8 @@ services:
 
   prometheus:
     build:
-      context: ./monitoring
-      dockerfile: prometheus/Dockerfile
+      context: ./monitoring/prometheus
+      dockerfile: Dockerfile
     container_name: auction-prometheus
     restart: unless-stopped
     ports:
