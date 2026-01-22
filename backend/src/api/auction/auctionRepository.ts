@@ -73,6 +73,12 @@ export class AuctionRepository {
 		});
 	}
 
+	async updateStatus(auctionId: string, status: "active" | "finished"): Promise<void> {
+		await Auction.findByIdAndUpdate(auctionId, {
+			status,
+		});
+	}
+
 	async updateTotalRounds(auctionId: string, totalRounds: number): Promise<void> {
 		await Auction.findByIdAndUpdate(auctionId, {
 			total_rounds: totalRounds,

@@ -63,8 +63,21 @@ export class BidService {
 			const timeUntilEnd = state.round_end_ts - now;
 			const antiSnipingMs = ANTI_SNIPING_SECONDS * 1000;
 
+			// Validate timeUntilEnd is a valid number
+			if (isNaN(timeUntilEnd) || !isFinite(timeUntilEnd)) {
+				logger.error(
+					{ userId, auctionId, roundNumber: state.round, roundEndTs: state.round_end_ts, now },
+					"Invalid round_end_ts in auction state",
+				);
+				return ServiceResponse.failure(
+					"Invalid auction state: round end time is not valid",
+					null as unknown as Bid,
+					StatusCodes.INTERNAL_SERVER_ERROR,
+				);
+			}
+
 			if (timeUntilEnd < antiSnipingMs) {
-				const secondsRemaining = Math.ceil(timeUntilEnd / 1000);
+				const secondsRemaining = Math.max(0, Math.ceil(timeUntilEnd / 1000));
 				logger.warn(
 					{ userId, auctionId, roundNumber: state.round, timeUntilEnd, secondsRemaining },
 					"Bid rejected: anti-sniping period active",

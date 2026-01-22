@@ -60,8 +60,35 @@ export class AuctionService {
 			// Finish all active auctions (max 1 active auction allowed)
 			const activeAuctions = await this.auctionRepository.findActiveAuctions();
 			if (activeAuctions.length > 0) {
-				// Finish all active auctions
+				// Import updateAuctionState for Redis synchronization
+				const { updateAuctionState } = await import("@/common/redis/auctionState");
+				const redis = getRedisClient();
+
+				// Finish all active auctions in MongoDB
 				await this.auctionRepository.finishAllActiveAuctions();
+
+				// Synchronize Redis state for all finished auctions
+				for (const activeAuction of activeAuctions) {
+					try {
+						// Update Redis status to "finished"
+						await updateAuctionState(activeAuction._id, { status: "finished" });
+
+						// Cleanup Redis keys for this auction
+						const pattern = getAuctionKeysPattern(activeAuction._id);
+						const keys = await redis.keys(pattern);
+						if (keys.length > 0) {
+							await redis.del(...keys);
+						}
+
+						logger.info({ auctionId: activeAuction._id }, "Finished active auction and synchronized Redis state");
+					} catch (error) {
+						logger.error(
+							{ error, auctionId: activeAuction._id },
+							"Error synchronizing Redis state when finishing active auction",
+						);
+						// Continue with other auctions even if one fails
+					}
+				}
 
 				// Finish all active rounds for these auctions
 				for (const activeAuction of activeAuctions) {
@@ -80,12 +107,12 @@ export class AuctionService {
 				round_duration: data.round_duration,
 				gifts_per_round: data.gifts_per_round,
 				total_rounds: totalRounds,
-				status: "active",
+				// Don't set status to "active" here - start() will set it after successful initialization
 			};
 
 			const auction = await this.auctionRepository.create(auctionData);
 
-			// Start the auction (initialize Redis state)
+			// Start the auction (initialize Redis state and set status to "active")
 			await this.start(auction._id);
 
 			// Update metrics
@@ -131,112 +158,135 @@ export class AuctionService {
 				throw new Error(`Auction ${auctionId} not found`);
 			}
 
-			// Check if auction is already active
+			// Check if auction is already active in MongoDB
 			if (auction.status === "active") {
-				logger.warn({ auctionId }, "Auction is already active");
+				logger.warn({ auctionId, status: auction.status }, "Auction is already active in MongoDB");
+				// Check Redis state to determine if this is a state inconsistency
+				const { getAuctionState } = await import("@/common/redis/auctionState");
+				const redisState = await getAuctionState(auctionId);
+				if (!redisState) {
+					logger.error(
+						{ auctionId },
+						"State inconsistency: auction is active in MongoDB but has no Redis state - this is a critical error",
+					);
+					throw new Error(
+						"Auction is marked as active in MongoDB but has no Redis state. This indicates a state inconsistency.",
+					);
+				}
 				throw new Error("Auction is already active");
 			}
 
-			// Create first round in MongoDB FIRST (before initializing Redis)
-			// This ensures we have a round before setting up timers
-			logger.info(
-				{ auctionId, collectionId: auction.collection_id, roundNumber: 1, giftsPerRound: auction.gifts_per_round },
-				"Creating first round in MongoDB",
-			);
-			const roundResponse = await roundService.createRound(
-				auctionId,
-				auction.collection_id,
-				1,
-				auction.gifts_per_round,
-			);
-
-			if (!roundResponse.success || !roundResponse.responseObject) {
-				logger.error(
-					{ auctionId, error: roundResponse.message },
-					"Failed to create first round - cannot start auction without a round",
-				);
-				// Clean up auction if round creation failed
-				await this.auctionRepository.finishAuction(auctionId);
-				throw new Error(`Failed to create first round: ${roundResponse.message}`);
-			}
-
-			const createdRound = roundResponse.responseObject;
-			logger.info(
-				{
-					auctionId,
-					roundId: createdRound._id,
-					roundNumber: createdRound.round_number,
-					giftsCount: createdRound.gift_ids.length,
-				},
-				"First round created successfully, now initializing Redis state",
-			);
-
-			// Verify round_number is correct
-			if (createdRound.round_number !== 1) {
-				logger.error(
-					{ auctionId, expectedRoundNumber: 1, actualRoundNumber: createdRound.round_number },
-					"Round number mismatch - created round has wrong number",
-				);
-				throw new Error(`Round number mismatch: expected 1, got ${createdRound.round_number}`);
-			}
-
-			// Clean up any existing Redis keys for this auction before initializing
-			// This ensures no stale data (like settling: true) remains from previous auctions
-			const redis = getRedisClient();
-			const pattern = getAuctionKeysPattern(auctionId);
-			const existingKeys = await redis.keys(pattern);
-			if (existingKeys.length > 0) {
-				logger.info({ auctionId, keysCount: existingKeys.length }, "Cleaning up existing Redis keys before initialization");
-				await redis.del(...existingKeys);
-			}
-
-			// Initialize Redis state for first round AFTER round is created
-			logger.info({ auctionId, roundNumber: 1 }, "Initializing Redis state for first round");
-			await initializeAuctionState(auctionId, 1, auction.round_duration);
-
-			// Verify Redis state was created
+			// Import auction state functions once at the start
 			const { getAuctionState, updateAuctionState } = await import("@/common/redis/auctionState");
-			const state = await getAuctionState(auctionId);
-			if (!state) {
-				logger.error({ auctionId }, "Redis state not initialized after createRound");
-				throw new Error("Failed to initialize Redis state");
+
+			// Check if auction state is already initialized in Redis (means auction was already started)
+			const existingState = await getAuctionState(auctionId);
+			if (existingState) {
+				logger.warn({ auctionId }, "Auction state already exists in Redis - auction was already started");
+				throw new Error("Auction is already active");
 			}
 
-			// Explicitly ensure settling flag is false (in case of any race condition or stale data)
-			if (state.settling === true) {
-				logger.warn({ auctionId }, "Settling flag was true after initialization, fixing it");
-				await updateAuctionState(auctionId, { settling: false });
-				// Re-fetch state to verify
-				const updatedState = await getAuctionState(auctionId);
-				if (updatedState && updatedState.settling === false) {
-					logger.info({ auctionId }, "Settling flag successfully set to false");
-				} else {
-					logger.error({ auctionId }, "Failed to set settling flag to false");
-					throw new Error("Failed to set settling flag to false");
-				}
-			}
+		// Create first round in MongoDB FIRST (before initializing Redis)
+		// This ensures we have a round before setting up timers
+		logger.info(
+			{ auctionId, collectionId: auction.collection_id, roundNumber: 1, giftsPerRound: auction.gifts_per_round },
+			"Creating first round in MongoDB",
+		);
+		const roundResponse = await roundService.createRound(
+			auctionId,
+			auction.collection_id,
+			1,
+			auction.gifts_per_round,
+		);
 
-			logger.info(
-				{ auctionId, roundNumber: state.round, roundEndTs: state.round_end_ts, settling: state.settling },
-				"Redis state initialized successfully",
+		if (!roundResponse.success || !roundResponse.responseObject) {
+			logger.error(
+				{ auctionId, error: roundResponse.message },
+				"Failed to create first round - cannot start auction without a round",
 			);
+			// Clean up auction if round creation failed
+			await this.auctionRepository.finishAuction(auctionId);
+			throw new Error(`Failed to create first round: ${roundResponse.message}`);
+		}
 
-			// Broadcast round_started event
-			const wsServer = getAuctionWebSocketServer();
-			if (wsServer) {
-				const event: RoundStartedEvent = {
-					type: "round_started",
-					data: {
-						auctionId,
-						roundNumber: 1,
-						roundEndTs: state.round_end_ts,
-					},
-				};
-				wsServer.broadcastToAuction(auctionId, event);
-				logger.info({ auctionId, roundNumber: 1 }, "Round_started event broadcasted");
+		const createdRound = roundResponse.responseObject;
+		logger.info(
+			{
+				auctionId,
+				roundId: createdRound._id,
+				roundNumber: createdRound.round_number,
+				giftsCount: createdRound.gift_ids.length,
+			},
+			"First round created successfully, now initializing Redis state",
+		);
+
+		// Verify round_number is correct
+		if (createdRound.round_number !== 1) {
+			logger.error(
+				{ auctionId, expectedRoundNumber: 1, actualRoundNumber: createdRound.round_number },
+				"Round number mismatch - created round has wrong number",
+			);
+			throw new Error(`Round number mismatch: expected 1, got ${createdRound.round_number}`);
+		}
+
+		// Clean up any existing Redis keys for this auction before initializing
+		// This ensures no stale data (like settling: true) remains from previous auctions
+		const redis = getRedisClient();
+		const pattern = getAuctionKeysPattern(auctionId);
+		const existingKeys = await redis.keys(pattern);
+		if (existingKeys.length > 0) {
+			logger.info({ auctionId, keysCount: existingKeys.length }, "Cleaning up existing Redis keys before initialization");
+			await redis.del(...existingKeys);
+		}
+
+		// Initialize Redis state for first round AFTER round is created
+		logger.info({ auctionId, roundNumber: 1 }, "Initializing Redis state for first round");
+		await initializeAuctionState(auctionId, 1, auction.round_duration);
+
+		// Verify Redis state was created
+		const state = await getAuctionState(auctionId);
+		if (!state) {
+			logger.error({ auctionId }, "Redis state not initialized after createRound");
+			throw new Error("Failed to initialize Redis state");
+		}
+
+		// Explicitly ensure settling flag is false (in case of any race condition or stale data)
+		if (state.settling === true) {
+			logger.warn({ auctionId }, "Settling flag was true after initialization, fixing it");
+			await updateAuctionState(auctionId, { settling: false });
+			// Re-fetch state to verify
+			const updatedState = await getAuctionState(auctionId);
+			if (updatedState && updatedState.settling === false) {
+				logger.info({ auctionId }, "Settling flag successfully set to false");
+			} else {
+				logger.error({ auctionId }, "Failed to set settling flag to false");
+				throw new Error("Failed to set settling flag to false");
 			}
+		}
 
-			logger.info({ auctionId, roundId: createdRound._id }, "Auction started successfully");
+		logger.info(
+			{ auctionId, roundNumber: state.round, roundEndTs: state.round_end_ts, settling: state.settling },
+			"Redis state initialized successfully",
+		);
+
+		// Broadcast round_started event
+		const wsServer = getAuctionWebSocketServer();
+		if (wsServer) {
+			const event: RoundStartedEvent = {
+				type: "round_started",
+				data: {
+					auctionId,
+					roundNumber: 1,
+					roundEndTs: state.round_end_ts,
+				},
+			};
+			wsServer.broadcastToAuction(auctionId, event);
+			logger.info({ auctionId, roundNumber: 1 }, "Round_started event broadcasted");
+		}
+
+		// Set auction status to "active" in MongoDB after successful initialization
+		await this.auctionRepository.updateStatus(auctionId, "active");
+		logger.info({ auctionId, roundId: createdRound._id }, "Auction started successfully");
 		} catch (error) {
 			logger.error(
 				{ error, auctionId, stack: error instanceof Error ? error.stack : undefined },
@@ -264,7 +314,7 @@ export class AuctionService {
 				throw new Error("Auction is already finished");
 			}
 
-			// Update MongoDB status
+			// Update MongoDB status first
 			await this.auctionRepository.finishAuction(auctionId);
 
 			// Mark collection as sold
@@ -273,8 +323,17 @@ export class AuctionService {
 			await collectionRepo.markAsSold(auction.collection_id);
 			logger.info({ auctionId, collectionId: auction.collection_id }, "Collection marked as sold");
 
-			// Update Redis state
-			await updateAuctionState(auctionId, { status: "finished" });
+			// Update Redis state to keep MongoDB and Redis in sync
+			// If this fails, MongoDB is already "finished", but Redis cleanup will happen anyway
+			try {
+				await updateAuctionState(auctionId, { status: "finished" });
+			} catch (error) {
+				logger.error(
+					{ error, auctionId },
+					"Failed to update Redis status to finished, but MongoDB is already finished - continuing with cleanup",
+				);
+				// Continue with cleanup even if Redis update fails
+			}
 
 			// Return all frozen balances for this auction
 			await walletService.unfreezeAllForAuction(auctionId);
