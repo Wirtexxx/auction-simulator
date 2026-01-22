@@ -107,7 +107,9 @@ export class AuctionService {
 				round_duration: data.round_duration,
 				gifts_per_round: data.gifts_per_round,
 				total_rounds: totalRounds,
-				// Don't set status to "active" here - start() will set it after successful initialization
+				// Create auction as "finished" initially - start() will change to "active" after Redis initialization
+				// This prevents state inconsistency where MongoDB has "active" but Redis has no state
+				status: "finished",
 			};
 
 			const auction = await this.auctionRepository.create(auctionData);
@@ -165,14 +167,91 @@ export class AuctionService {
 				const { getAuctionState } = await import("@/common/redis/auctionState");
 				const redisState = await getAuctionState(auctionId);
 				if (!redisState) {
-					logger.error(
+					// State inconsistency detected: auction is "active" in MongoDB but no Redis state
+					// Attempt to recover by initializing Redis state from MongoDB data
+					logger.warn(
 						{ auctionId },
-						"State inconsistency: auction is active in MongoDB but has no Redis state - this is a critical error",
+						"State inconsistency detected: auction is active in MongoDB but has no Redis state. Attempting recovery...",
 					);
-					throw new Error(
-						"Auction is marked as active in MongoDB but has no Redis state. This indicates a state inconsistency.",
-					);
+					
+					try {
+						// Get current round from MongoDB
+						const currentRoundResponse = await roundService.getCurrentRound(auctionId);
+						
+						if (currentRoundResponse.success && currentRoundResponse.responseObject) {
+							const currentRound = currentRoundResponse.responseObject;
+							const roundNumber = currentRound.round_number;
+							
+							// Calculate round end timestamp
+							const roundStartTime = currentRound.started_at.getTime();
+							const roundEndTs = roundStartTime + auction.round_duration * 1000;
+							const now = Date.now();
+							
+							// Initialize Redis state for the current round
+							if (roundEndTs > now) {
+								// Round hasn't expired, restore state
+								logger.info(
+									{ auctionId, roundNumber, roundEndTs, now },
+									"Recovering auction state: round is still active",
+								);
+								await initializeAuctionStateWithTime(auctionId, roundNumber, roundEndTs);
+								
+								// Verify recovery was successful
+								const recoveredState = await getAuctionState(auctionId);
+								if (recoveredState) {
+									logger.info(
+										{ auctionId, roundNumber },
+										"Auction state successfully recovered from MongoDB data",
+									);
+									// Recovery successful, return early
+									return;
+								} else {
+									logger.error({ auctionId }, "Recovery failed: Redis state not initialized after recovery attempt");
+									throw new Error("Failed to recover auction state: Redis initialization failed");
+								}
+							} else {
+								// Round has expired, initialize for current round (settlement will be handled separately)
+								logger.info(
+									{ auctionId, roundNumber, roundEndTs, now },
+									"Recovering auction state: round has expired, initializing for current round",
+								);
+								await initializeAuctionState(auctionId, roundNumber, auction.round_duration);
+								
+								const recoveredState = await getAuctionState(auctionId);
+								if (recoveredState) {
+									logger.info({ auctionId, roundNumber }, "Auction state recovered (expired round)");
+									return;
+								} else {
+									throw new Error("Failed to recover auction state: Redis initialization failed");
+								}
+							}
+						} else {
+							// No round found, initialize for round 1
+							logger.info(
+								{ auctionId, currentRoundNumber: auction.current_round_number },
+								"Recovering auction state: no round found, initializing for current round number",
+							);
+							await initializeAuctionState(auctionId, auction.current_round_number, auction.round_duration);
+							
+							const recoveredState = await getAuctionState(auctionId);
+							if (recoveredState) {
+								logger.info({ auctionId, roundNumber: auction.current_round_number }, "Auction state recovered (no round found)");
+								return;
+							} else {
+								throw new Error("Failed to recover auction state: Redis initialization failed");
+							}
+						}
+					} catch (recoveryError) {
+						logger.error(
+							{ error: recoveryError, auctionId },
+							"Recovery failed: unable to restore Redis state from MongoDB data",
+						);
+						throw new Error(
+							`Auction is marked as active in MongoDB but has no Redis state. Recovery attempt failed: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`,
+						);
+					}
 				}
+				// Redis state exists, auction is truly active
 				throw new Error("Auction is already active");
 			}
 

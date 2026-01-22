@@ -81,13 +81,19 @@ function AuthPageTelegram() {
         let finalInitDataRaw: string | undefined = initDataRaw;
 
         if (!finalInitDataRaw && launchParams?.initDataRaw) {
-          finalInitDataRaw = launchParams.initDataRaw;
+          const launchParamsInitData = launchParams.initDataRaw;
+          if (typeof launchParamsInitData === "string" && launchParamsInitData.length > 0) {
+            finalInitDataRaw = launchParamsInitData;
+          }
         }
 
         if (!finalInitDataRaw) {
           try {
             const params = retrieveLaunchParams();
-            finalInitDataRaw = params.initDataRaw;
+            const paramsInitData = params.initDataRaw;
+            if (typeof paramsInitData === "string" && paramsInitData.length > 0) {
+              finalInitDataRaw = paramsInitData;
+            }
           } catch (e) {
             if (import.meta.env.DEV) {
               console.warn("⚠️ Failed to retrieve launch params:", e);
