@@ -8,7 +8,7 @@
 
 - **Telegram Bot:** [@auction_simulator_bot](https://t.me/auction_simulator_bot) - откройте бота в Telegram для доступа к приложению
 - **Backend API Documentation:** [https://telegram-auction-backend.up.railway.app/api-docs](https://telegram-auction-backend.up.railway.app/api-docs) - полная документация API (Swagger UI)
-- **Backend API Metrix:** [metrix.railway.app](https://auction-telegram-metrix.up.railway.app/public-dashboards/662215bb017a4807b8d08ecc0ae775a3) - метрики к api - вся информации в live формате о сервере 
+- **Backend API Metrix:** [metrix.railway.app](https://auction-telegram-metrix.up.railway.app/public-dashboards/d529da22ea2b408e862d1ddc53e33baf) - метрики к api - вся информации в live формате о сервере 
 
 
 ## Механика аукциона
