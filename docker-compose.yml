@@ -99,19 +99,23 @@ services:
       - /app/node_modules
 
   prometheus:
-    image: prom/prometheus:latest
+    build:
+      context: ./monitoring
+      dockerfile: prometheus/Dockerfile
     container_name: auction-prometheus
     restart: unless-stopped
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-      - "--web.console.templates=/usr/share/prometheus/consoles"
-      - "--storage.tsdb.retention.time=30d"
+    environment:
+      # Prometheus configuration from environment variables
+      # Entrypoint script uses: SCRAPE_INTERVAL, EVALUATION_INTERVAL, MONITOR, JOB_NAME, TARGETS, LABELS
+      SCRAPE_INTERVAL: ${PROMETHEUS_SCRAPE_INTERVAL:-15s}
+      EVALUATION_INTERVAL: ${PROMETHEUS_EVALUATION_INTERVAL:-15s}
+      MONITOR: ${PROMETHEUS_MONITOR_LABEL:-auction-simulator}
+      JOB_NAME: ${PROMETHEUS_BACKEND_JOB_NAME:-backend}
+      TARGETS: ${PROMETHEUS_BACKEND_TARGET:-backend:8080}
+      LABELS: "service=${PROMETHEUS_BACKEND_SERVICE_LABEL:-auction-backend},environment=${PROMETHEUS_ENVIRONMENT:-production}"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     networks:
       - auction-network
@@ -132,7 +136,9 @@ services:
       retries: 5
 
   grafana:
-    image: grafana/grafana:latest
+    build:
+      context: ./monitoring/grafana
+      dockerfile: Dockerfile
     container_name: auction-grafana
     restart: unless-stopped
     ports:
@@ -144,8 +150,6 @@ services:
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - auction-network
     depends_on:

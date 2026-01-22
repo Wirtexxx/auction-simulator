@@ -1,7 +1,15 @@
 # Auction Simulator - Telegram Mini App Backend Challenge
 
-**Project name:** CryptoBot Auction  
-**Project description:** Backend system for running digital item auctions with bids, rounds, balances, and winner selection, based on CryptoBot auction mechanics
+**Project name:**  Telegram Gift Auctions  
+**Project description:** Backend system for running digital item auctions with bids, rounds, balances, and winner selection, based on Telegram auction mechanics
+(project for CryptoBot - @send)
+
+## Информация о проекте
+
+- **Telegram Bot:** [@auction_simulator_bot](https://t.me/auction_simulator_bot) - откройте бота в Telegram для доступа к приложению
+- **Backend API Documentation:** [https://telegram-auction-backend.up.railway.app/api-docs](https://telegram-auction-backend.up.railway.app/api-docs) - полная документация API (Swagger UI)
+- **Backend API Metrix:** [https://telegram-auction-metrix.up.railway.app](https://telegram-auction-metrix.up.railway.app) - метрики к api - вся информации в live формате о сервере (login: test, password: test)
+
 
 ## Механика аукциона
 
@@ -92,6 +100,11 @@
     - Восстановление frozen balances
     - Восстановление ставок из предыдущих раундов
 
+7. **Error Handling Utilities** (`backend/src/common/utils/errorHandling.ts`)
+    - Стандартизированная обработка ошибок
+    - Утилиты для извлечения сообщений и stack trace из ошибок
+    - Единообразная обработка ошибок во всех сервисах
+
 #### Frontend
 
 1. **Auction Pages**
@@ -112,12 +125,29 @@
     - Уведомления о начале/завершении раундов
     - Уведомления о завершении аукциона
 
+4. **Custom Hooks** (`frontend/src/hooks/`)
+
+    - `useAuthentication` - управление процессом аутентификации (mock/real Telegram mode)
+    - `useApi` - универсальный хук для API запросов с управлением состоянием (loading, error, data)
+    - `useCountdown` - таймер обратного отсчета для раундов аукциона
+    - `useAuctionWebSocket` - подключение к WebSocket для real-time обновлений
+    - `useTelegramBackButton` - управление кнопкой "Назад" в Telegram Mini App
+
+5. **Mock Mode для разработки**
+
+    - Поддержка режима разработки без реального Telegram окружения
+    - Переменная `VITE_MOCK_TELEGRAM=true` для включения mock режима
+    - Автоматическая инициализация mock данных для тестирования
+
 ### Поток данных
 
 ```
 1. Создание аукциона
    Admin → POST /auctions → AuctionService.createAuction()
-   → RoundService.createRound() → Redis state initialization
+   → AuctionRepository.create() (status: "finished")
+   → AuctionService.start() → createFirstRound()
+   → RoundService.createRound() → initializeAuctionRedisState()
+   → Redis state initialization → Status updated to "active"
 
 2. Размещение ставки
    User → POST /bids → BidService.placeBid()
@@ -132,6 +162,10 @@
 4. Завершение аукциона
    shouldFinish() → AuctionService.finish()
    → Unfreeze all balances → Cleanup Redis → Mark collection as sold
+
+5. Восстановление состояния (при перезапуске)
+   Server start → RecoveryService.recoverActiveAuctions()
+   → Rebuild Redis state from MongoDB → Restore timers
 ```
 
 ### Redis структура данных
@@ -159,13 +193,28 @@ git clone <repository-url>
 cd auction-simulator
 ```
 
-2. Создайте файл `.env` (опционально, есть значения по умолчанию):
+2. Создайте файл `.env` в корне проекта (опционально, есть значения по умолчанию):
 
 ```env
+# MongoDB
 MONGO_ROOT_USERNAME=admin
 MONGO_ROOT_PASSWORD=password
+MONGO_DATABASE=auction_db
+
+# Redis
 REDIS_PASSWORD=redispassword
+
+# Telegram (опционально)
 TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_MINI_APP_URL=https://your-mini-app-url
+
+# Backend
+JWT_SECRET=your-secret-key-change-in-production
+CORS_ORIGIN=http://localhost:5173
+
+# Frontend (для разработки с mock mode)
+VITE_MOCK_TELEGRAM=true
+VITE_API_URL=http://localhost:8080
 ```
 
 3. Запустите систему:
@@ -197,17 +246,48 @@ pnpm install
 pnpm run dev
 ```
 
+**Разработка с Mock Mode:**
+
+Для разработки frontend без реального Telegram окружения можно использовать mock mode:
+
+1. Создайте файл `.env` в корне проекта или `frontend/.env.local`:
+```env
+VITE_MOCK_TELEGRAM=true
+VITE_API_URL=http://localhost:8080
+```
+
+2. Запустите frontend:
+```bash
+cd frontend
+pnpm run dev
+```
+
+Mock mode автоматически инициализирует тестовые данные Telegram (пользователь, initData) для разработки и тестирования без необходимости открывать приложение из Telegram.
+
 ### Переменные окружения
+
+#### Backend
 
 См. `backend/src/common/utils/envConfig.ts` для полного списка переменных окружения.
 
 Основные:
 
+-   `NODE_ENV` - окружение (development, production, test)
+-   `HOST` - хост сервера (по умолчанию: localhost)
+-   `PORT` - порт сервера (по умолчанию: 8080)
 -   `MONGO_URI` - строка подключения к MongoDB
 -   `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` - параметры Redis
 -   `JWT_SECRET` - секрет для JWT токенов
 -   `TELEGRAM_BOT_TOKEN` - токен Telegram бота (опционально)
+-   `TELEGRAM_MINI_APP_URL` - URL Telegram Mini App (опционально)
 -   `CORS_ORIGIN` - разрешенный origin для CORS
+-   `COMMON_RATE_LIMIT_MAX_REQUESTS` - максимальное количество запросов для rate limiting
+-   `COMMON_RATE_LIMIT_WINDOW_MS` - окно времени для rate limiting в миллисекундах
+
+#### Frontend
+
+-   `VITE_API_URL` - URL backend API (по умолчанию: http://localhost:8080)
+-   `VITE_MOCK_TELEGRAM` - включить mock режим для разработки без Telegram (true/false)
 
 ## API Документация
 
@@ -218,14 +298,60 @@ pnpm run dev
 
 ### Основные endpoints
 
+#### Аутентификация и пользователи
+
+-   `POST /users/authenticate` - аутентификация через Telegram initData
+-   `GET /users/:id` - получение информации о пользователе
+
+#### Аукционы
+
 -   `POST /auctions` - создание аукциона (требует admin)
--   `GET /auctions` - список аукционов
+-   `GET /auctions` - список аукционов (поддерживает фильтры: collection_id, status, limit, offset)
 -   `GET /auctions/:id` - детали аукциона
 -   `POST /auctions/:id/start` - запуск аукциона (требует admin)
 -   `POST /auctions/:id/finish` - завершение аукциона (требует admin)
+
+#### Ставки
+
 -   `POST /bids` - размещение ставки (требует auth)
--   `GET /bids/round` - список ставок раунда
+-   `GET /bids?auction_id=...&round_number=...` - список ставок раунда
+
+#### Раунды
+
+-   `GET /rounds` - список раундов (поддерживает фильтры: auction_id, status, round_number)
+-   `GET /rounds/current?auction_id=...` - текущий активный раунд аукциона
+-   `GET /rounds/:id` - детали раунда
+
+#### Коллекции и подарки
+
+-   `POST /collections` - создание коллекции (требует admin)
+-   `GET /collections` - список коллекций (поддерживает фильтры: limit, offset)
+-   `GET /collections/:id` - детали коллекции
+-   `POST /gifts` - создание подарка (требует admin)
+-   `GET /gifts` - список подарков (поддерживает фильтры: collection_id, limit, offset)
+-   `GET /gifts/:id` - детали подарка
+
+#### Кошельки
+
+-   `POST /wallets` - создание кошелька (требует admin)
 -   `GET /wallets/:id` - баланс пользователя
+-   `PUT /wallets/:id` - обновление баланса (требует admin)
+
+#### Собственность
+
+-   `GET /ownerships` - список собственности (поддерживает фильтры: user_id, gift_id, limit, offset)
+-   `GET /ownerships/:id` - детали собственности
+
+#### Системные
+
+-   `GET /health` - проверка здоровья сервиса
+-   `GET /metrics` - метрики Prometheus
+-   `GET /api-docs` - Swagger UI документация
+-   `GET /swagger.json` - OpenAPI спецификация в JSON формате
+
+#### Telegram Bot
+
+-   `POST /telegram-bot/webhook` - webhook для Telegram бота
 
 ## Допущения и решения
 
@@ -271,6 +397,16 @@ pnpm run dev
 4. **Idempotency**
     - Settlement помечается как выполненный
     - Предотвращает повторную обработку
+
+5. **State Recovery**
+    - Автоматическое восстановление состояния при несоответствии MongoDB и Redis
+    - Восстановление активных аукционов после перезапуска сервера
+    - Восстановление frozen balances и ставок
+
+6. **Code Organization**
+    - Разделение логики на слои: Controller → Service → Repository
+    - Переиспользуемые утилиты для обработки ошибок
+    - Извлечение общей логики в хуки и утилиты
 
 ## Тестирование
 
