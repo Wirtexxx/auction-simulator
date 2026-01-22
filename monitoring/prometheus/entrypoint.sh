@@ -1,15 +1,30 @@
 #!/bin/sh
 set -eu
 
-# Defaults
-SCRAPE_INTERVAL=${SCRAPE_INTERVAL:-15s}
-EVALUATION_INTERVAL=${EVALUATION_INTERVAL:-15s}
-MONITOR=${MONITOR:-auction-simulator}
-CONFIG_FILE=/etc/prometheus/prom.yml
+# =========================
+# Configuration
+# =========================
+SCRAPE_INTERVAL="${SCRAPE_INTERVAL:-15s}"
+EVALUATION_INTERVAL="${EVALUATION_INTERVAL:-15s}"
+MONITOR="${MONITOR:-auction-simulator}"
+CONFIG_FILE="/etc/prometheus/prom.yml"
 
-# Create config dir if missing
-mkdir -p $(dirname "$CONFIG_FILE")
+# =========================
+# Preconditions
+# =========================
+if [ -z "${JOB_NAME:-}" ] && [ -z "${CUSTOM_SCRAPE_CONFIGS:-}" ]; then
+  echo "ERROR: no scrape configs provided (JOB_NAME/TARGETS or CUSTOM_SCRAPE_CONFIGS required)" >&2
+  exit 1
+fi
 
+# =========================
+# Prepare filesystem
+# =========================
+mkdir -p "$(dirname "$CONFIG_FILE")"
+
+# =========================
+# Write global config
+# =========================
 cat > "$CONFIG_FILE" <<EOF
 global:
   scrape_interval: ${SCRAPE_INTERVAL}
@@ -20,15 +35,16 @@ global:
 scrape_configs:
 EOF
 
-# Helper: write one job from JOB_NAME/TARGETS/LABELS
+# =========================
+# Single job via env vars
+# =========================
 if [ -n "${JOB_NAME:-}" ] && [ -n "${TARGETS:-}" ]; then
-  # Convert comma-separated targets into YAML array entries
-  # e.g. TARGETS="backend:8080,other:9090"
   printf '  - job_name: "%s"\n' "$JOB_NAME" >> "$CONFIG_FILE"
   printf '    static_configs:\n' >> "$CONFIG_FILE"
   printf '      - targets: [' >> "$CONFIG_FILE"
+
   first=1
-  for t in $(echo "$TARGETS" | tr ',' ' '); do
+  for t in $(printf '%s' "$TARGETS" | tr ',' ' '); do
     if [ "$first" -eq 1 ]; then
       printf '"%s"' "$t" >> "$CONFIG_FILE"
       first=0
@@ -38,26 +54,36 @@ if [ -n "${JOB_NAME:-}" ] && [ -n "${TARGETS:-}" ]; then
   done
   printf ']\n' >> "$CONFIG_FILE"
 
-  # Add labels if provided: LABELS="service=auction-backend,environment=production"
   if [ -n "${LABELS:-}" ]; then
     printf '        labels:\n' >> "$CONFIG_FILE"
-    IFS=','; for kv in $LABELS; do
+    OLD_IFS="$IFS"
+    IFS=','
+
+    for kv in $LABELS; do
       key=$(printf '%s' "$kv" | cut -d= -f1)
       val=$(printf '%s' "$kv" | cut -d= -f2-)
       printf '          %s: "%s"\n' "$key" "$val" >> "$CONFIG_FILE"
     done
+
+    IFS="$OLD_IFS"
   fi
 fi
 
-# If the user provided arbitrary additional scrape configs, append them verbatim.
-# Useful for complex jobs. Example: set CUSTOM_SCRAPE_CONFIGS env to a YAML block.
+# =========================
+# Custom scrape configs
+# =========================
 if [ -n "${CUSTOM_SCRAPE_CONFIGS:-}" ]; then
-  printf '\n# custom scrape configs (from CUSTOM_SCRAPE_CONFIGS env)\n' >> "$CONFIG_FILE"
+  printf '\n# custom scrape configs (from CUSTOM_SCRAPE_CONFIGS)\n' >> "$CONFIG_FILE"
   printf '%s\n' "$CUSTOM_SCRAPE_CONFIGS" >> "$CONFIG_FILE"
 fi
 
+# =========================
+# Debug output
+# =========================
 echo "Generated Prometheus config at $CONFIG_FILE:"
 cat "$CONFIG_FILE"
 
-# Exec prometheus with provided args (allow overriding via CMD)
+# =========================
+# Run Prometheus
+# =========================
 exec /bin/prometheus --config.file="$CONFIG_FILE" "$@"
