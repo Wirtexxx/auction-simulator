@@ -11,7 +11,7 @@
 - **Backend API Metrix:** [metrix.railway.app](https://auction-telegram-metrix.up.railway.app/public-dashboards/d529da22ea2b408e862d1ddc53e33baf) - метрики к api - вся информации в live формате о сервере
 - **Demo Video:** [Video](https://drive.google.com/file/d/1Oq6aWyUOjlxfAjJ3Ee1li9c1ZukdYqhy/view?usp=sharing) - демо видео, презентация роботы аукциона
 - **Testing Instruction:** [TESTING.md](/docs/TESTING.md) - Пошаговая инструкция по тестированию и использованию приложения
-- **Work Schema: ** [docs.svg](/docs.svg) - Блок-схема логики приложения и взаимодействия компонентов (Telegram → Backend → Auction Engine)
+- **Work Schema:** [docs.svg](/docs.svg) - Блок-схема логики приложения и взаимодействия компонентов (Telegram → Backend → Auction Engine)
 
 
 ## Механика аукциона
